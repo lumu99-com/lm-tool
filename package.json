@@ -1,0 +1,12 @@
+{
+  "name": "lm-tool",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "lm": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
