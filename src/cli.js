@@ -1,7 +1,8 @@
+import { buildHelpText } from './core/help-registry.js';
+
 export async function runCli(argv, deps) {
   if (argv[0] === 'help') {
-    deps.writeLine('lm init');
-    deps.writeLine('lm build');
+    deps.writeLine(buildHelpText());
     return { exitCode: 0 };
   }
 
