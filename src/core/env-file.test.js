@@ -143,3 +143,28 @@ test('syncAddedExampleLines ignores modified and deleted example lines', () => {
     'APP_NAME=lumu99',
   ]);
 });
+
+test('syncAddedExampleLines keeps pure-added comment and key from a mixed diff block', () => {
+  const result = syncAddedExampleLines({
+    beforeExampleLines: [
+      'A=1',
+      'B=1',
+    ],
+    afterExampleLines: [
+      'A=2',
+      '# Redis',
+      'C=3',
+      'B=1',
+    ],
+    envLines: [
+      'B=7',
+    ],
+  });
+
+  assert.equal(result.changed, true);
+  assert.deepEqual(result.lines, [
+    '# Redis',
+    'C=3',
+    'B=7',
+  ]);
+});

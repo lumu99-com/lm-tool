@@ -90,11 +90,15 @@ export function syncAddedExampleLines({
   let changed = false;
 
   for (const block of blocks) {
-    if (block.removed.length > 0 || block.added.length === 0) {
+    if (block.added.length === 0) {
       continue;
     }
 
-    const insertLines = collectInsertableLines(block.added, nextEnvLines);
+    const insertLines = collectInsertableLines({
+      candidateLines: block.added,
+      removedLines: block.removed,
+      envLines: nextEnvLines,
+    });
     if (insertLines.length === 0) {
       continue;
     }
@@ -184,8 +188,13 @@ function buildLcsMatrix(beforeLines, afterLines) {
   return matrix;
 }
 
-function collectInsertableLines(candidateLines, envLines) {
+function collectInsertableLines({ candidateLines, removedLines, envLines }) {
   const parsedEnvLines = parseEnvLines(envLines);
+  const removedKeys = new Set(
+    parseEnvLines(removedLines)
+      .filter((line) => line.kind === 'key')
+      .map((line) => line.key),
+  );
   const existingKeys = new Set(
     parsedEnvLines
       .filter((line) => line.kind === 'key')
@@ -202,7 +211,7 @@ function collectInsertableLines(candidateLines, envLines) {
     const parsedLine = parseEnvLine(rawLine);
 
     if (parsedLine.kind === 'key') {
-      if (existingKeys.has(parsedLine.key)) {
+      if (removedKeys.has(parsedLine.key) || existingKeys.has(parsedLine.key)) {
         continue;
       }
 
