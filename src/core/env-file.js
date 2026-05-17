@@ -280,7 +280,7 @@ function findReplacedCommentIndexes({ removedComments, candidateLines }) {
       return right.token - left.token;
     }
 
-    return left.candidateIndex - right.candidateIndex;
+    return right.candidateIndex - left.candidateIndex;
   });
 
   const matchedRemovedIndexes = new Set();

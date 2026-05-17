@@ -212,3 +212,26 @@ test('syncAddedExampleLines keeps a real new comment before a replaced old comme
     'A=9',
   ]);
 });
+
+test('syncAddedExampleLines prefers the more likely replacement when two new comments tie on base similarity', () => {
+  const result = syncAddedExampleLines({
+    beforeExampleLines: [
+      '# Base',
+      'A=1',
+    ],
+    afterExampleLines: [
+      '# Base Redis',
+      '# Base Config',
+      'A=1',
+    ],
+    envLines: [
+      'A=9',
+    ],
+  });
+
+  assert.equal(result.changed, true);
+  assert.deepEqual(result.lines, [
+    '# Base Redis',
+    'A=9',
+  ]);
+});
