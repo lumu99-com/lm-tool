@@ -1,31 +1,55 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { openSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 
+import { createCheckCommand } from './check.js';
 import { createBuildPlan } from '../core/build-plan.js';
+import {
+  ensureServerEnvFile,
+  resolveServerEnvPaths,
+  syncAddedExampleLines,
+} from '../core/env-file.js';
 import { locateVersionedServerJar, copyServerJarToFixedName } from '../core/jar.js';
 import { createServerRestartPlan, matchesServerJarCommandLine } from '../core/server-runtime.js';
 
 export function createBuildCommand(deps) {
   const executor = deps.executor;
+  const configStore = deps.configStore;
   const writeLine = deps.writeLine ?? (() => {});
   const writeStdout = deps.writeStdout ?? ((chunk) => process.stdout.write(chunk));
   const writeStderr = deps.writeStderr ?? ((chunk) => process.stderr.write(chunk));
+  const readFileImpl = deps.readFileImpl ?? readFile;
+  const writeFileImpl = deps.writeFileImpl ?? writeFile;
+  const ensureEnvFile = deps.ensureServerEnvFile ?? ensureServerEnvFile;
+  const resolveEnvPaths = deps.resolveServerEnvPaths ?? resolveServerEnvPaths;
+  const syncExampleLines = deps.syncAddedExampleLines ?? syncAddedExampleLines;
+  const checkCommand = deps.checkCommand ?? createCheckCommand({
+    configStore,
+    prompts: deps.prompts ?? {},
+    writeLine,
+  });
 
   return {
     async run(target) {
-      const config = await deps.configStore.load();
+      const config = await configStore.load();
       if (!config) {
         writeLine('请先执行 lm init');
         return { exitCode: 1 };
       }
 
-      return runTarget(target, config);
+      try {
+        return await runTarget(target, config);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        writeLine(message);
+        return { exitCode: 1 };
+      }
     },
   };
 
   async function runTarget(target, config) {
     const plan = createBuildPlan({ target, config });
+    const state = {};
 
     if (plan.children) {
       for (const child of plan.children) {
@@ -39,7 +63,7 @@ export function createBuildCommand(deps) {
     }
 
     for (const step of plan.steps) {
-      const result = await runStep(step);
+      const result = await runStep(step, { config, state });
       if (result.exitCode !== 0) {
         writeLine(`${plan.target} 构建失败：${step.infoLabel ?? step.label}`);
         return result;
@@ -50,7 +74,7 @@ export function createBuildCommand(deps) {
     return { exitCode: 0 };
   }
 
-  async function runStep(step) {
+  async function runStep(step, context) {
     if (step.kind === 'command') {
       return executor.run({
         ...step,
@@ -58,6 +82,25 @@ export function createBuildCommand(deps) {
         onStdout: writeStdout,
         onStderr: writeStderr,
       });
+    }
+
+    if (step.kind === 'snapshot-server-example') {
+      context.state.serverExamplePaths = resolveEnvPaths({ config: context.config });
+      context.state.beforeExampleContent = await readFileIfExists(
+        context.state.serverExamplePaths.examplePath,
+      );
+      return { exitCode: 0 };
+    }
+
+    if (step.kind === 'sync-server-env') {
+      return runManagedStep(step, async () => {
+        await syncServerEnvAfterPull(context);
+        return { exitCode: 0 };
+      });
+    }
+
+    if (step.kind === 'check-server-env') {
+      return runManagedStep(step, async () => checkCommand.run('server'));
     }
 
     if (step.kind === 'copy-server-jar') {
@@ -97,6 +140,96 @@ export function createBuildCommand(deps) {
     }
 
     throw new Error(`Unsupported build step: ${step.kind}`);
+  }
+
+  async function syncServerEnvAfterPull(context) {
+    const paths = context.state.serverExamplePaths ?? resolveEnvPaths({ config: context.config });
+    const ensureResult = await ensureEnvFile({ config: context.config });
+    if (!ensureResult.envExists || !ensureResult.exampleExists) {
+      return;
+    }
+
+    const beforeExampleContent = context.state.beforeExampleContent ?? '';
+    const afterExampleContent = await readFileImpl(paths.examplePath, 'utf8');
+    const envContent = await readFileImpl(paths.envPath, 'utf8');
+    const syncResult = syncExampleLines({
+      beforeExampleLines: beforeExampleContent,
+      afterExampleLines: afterExampleContent,
+      envLines: envContent,
+    });
+
+    if (!syncResult.changed) {
+      return;
+    }
+
+    await writeFileImpl(
+      paths.envPath,
+      stringifyEnvLines({
+        lines: syncResult.lines,
+        originalContent: envContent,
+        fallbackContent: afterExampleContent,
+      }),
+    );
+  }
+
+  async function runManagedStep(step, action) {
+    if (step.startMessage) {
+      writeLine(step.startMessage);
+    }
+
+    try {
+      const result = await action();
+      writeStepCompletion(step, result.exitCode ?? 1, writeLine);
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      writeStderr(`${message}\n`);
+      writeStepCompletion(step, 1, writeLine);
+      return { exitCode: 1 };
+    }
+  }
+}
+
+function writeStepCompletion(step, exitCode, writeLine = console.log) {
+  const status = exitCode === 0 ? '执行成功' : '执行失败';
+  const infoLabel = step.infoLabel ?? step.label;
+  writeLine(`[INFO] ${infoLabel} ${status}`);
+  writeLine('=======================');
+}
+
+function stringifyEnvLines({ lines, originalContent, fallbackContent }) {
+  if (lines.length === 0) {
+    return '';
+  }
+
+  const lineEnding = detectLineEnding(originalContent) ?? detectLineEnding(fallbackContent) ?? '\n';
+  const hasTrailingNewline = endsWithLineEnding(originalContent)
+    || (!originalContent && endsWithLineEnding(fallbackContent));
+
+  return `${lines.join(lineEnding)}${hasTrailingNewline ? lineEnding : ''}`;
+}
+
+function detectLineEnding(content) {
+  if (typeof content !== 'string' || content.length === 0) {
+    return null;
+  }
+
+  return content.includes('\r\n') ? '\r\n' : '\n';
+}
+
+function endsWithLineEnding(content) {
+  return typeof content === 'string' && (content.endsWith('\r\n') || content.endsWith('\n'));
+}
+
+async function readFileIfExists(filePath) {
+  try {
+    return await readFile(filePath, 'utf8');
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      return null;
+    }
+
+    throw error;
   }
 }
 

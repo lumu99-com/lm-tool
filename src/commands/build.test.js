@@ -1,0 +1,185 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import os from 'node:os';
+import path from 'node:path';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+
+import { createBuildCommand } from './build.js';
+
+function createServerConfig(serverDir) {
+  return {
+    platform: 'windows',
+    projects: {
+      server: serverDir,
+    },
+    server: {
+      fixedJarName: 'lumu99-server.jar',
+      logFile: 'logs/server.log',
+      linuxServiceName: 'lumu99-server',
+    },
+  };
+}
+
+test('build server syncs new example lines and runs check server before maven build', async (t) => {
+  const serverDir = await mkdtemp(path.join(os.tmpdir(), 'lm-tool-build-'));
+  t.after(() => rm(serverDir, { recursive: true, force: true }));
+
+  const envPath = path.join(serverDir, '.env');
+  const examplePath = path.join(serverDir, '.env.example');
+
+  await writeFile(examplePath, 'SPRING_PROFILES_ACTIVE=prod\n');
+  await writeFile(envPath, 'SPRING_PROFILES_ACTIVE=local\n');
+
+  const sequence = [];
+  let envContentAtCheck = '';
+  const command = createBuildCommand({
+    configStore: {
+      load: async () => createServerConfig(serverDir),
+    },
+    executor: {
+      run: async ({ label }) => {
+        sequence.push(label);
+        if (label === 'git pull') {
+          await writeFile(
+            examplePath,
+            [
+              'SPRING_PROFILES_ACTIVE=prod',
+              '# Redis',
+              'REDIS_HOST=127.0.0.1',
+              'REDIS_PASSWORD=',
+              '',
+            ].join('\n'),
+          );
+        }
+
+        return { exitCode: 0 };
+      },
+    },
+    checkCommand: {
+      run: async (target) => {
+        sequence.push(`check:${target}`);
+        envContentAtCheck = await readFile(envPath, 'utf8');
+        return { exitCode: 0 };
+      },
+    },
+    locateVersionedServerJar: async () => ({ fullPath: path.join(serverDir, 'target', 'lumu99-server-1.1.8.jar') }),
+    copyServerJarToFixedName: async () => {
+      sequence.push('copy-jar');
+    },
+    createServerRestartPlan: () => ({ steps: [] }),
+    writeLine: () => {},
+  });
+
+  const result = await command.run('server');
+  const envContent = await readFile(envPath, 'utf8');
+
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(sequence, [
+    'git pull',
+    'check:server',
+    'mvn clean package -DskipTests',
+    'copy-jar',
+  ]);
+  assert.match(envContentAtCheck, /^SPRING_PROFILES_ACTIVE=local\s*$/m);
+  assert.match(envContentAtCheck, /^# Redis\s*$/m);
+  assert.match(envContentAtCheck, /^REDIS_HOST=127\.0\.0\.1\s*$/m);
+  assert.match(envContentAtCheck, /^REDIS_PASSWORD=\s*$/m);
+  assert.equal(envContent, envContentAtCheck);
+});
+
+test('build server sync does not overwrite existing env values', async (t) => {
+  const serverDir = await mkdtemp(path.join(os.tmpdir(), 'lm-tool-build-'));
+  t.after(() => rm(serverDir, { recursive: true, force: true }));
+
+  const envPath = path.join(serverDir, '.env');
+  const examplePath = path.join(serverDir, '.env.example');
+
+  await writeFile(
+    examplePath,
+    [
+      'SPRING_PROFILES_ACTIVE=prod',
+      'APP_PORT=8080',
+      '',
+    ].join('\n'),
+  );
+  await writeFile(envPath, 'SPRING_PROFILES_ACTIVE=local\n');
+
+  const command = createBuildCommand({
+    configStore: {
+      load: async () => createServerConfig(serverDir),
+    },
+    executor: {
+      run: async ({ label }) => {
+        if (label === 'git pull') {
+          await writeFile(
+            examplePath,
+            [
+              'SPRING_PROFILES_ACTIVE=dev',
+              'APP_PORT=8080',
+              'NEW_REDIS_HOST=127.0.0.1',
+              '',
+            ].join('\n'),
+          );
+        }
+
+        return { exitCode: 0 };
+      },
+    },
+    checkCommand: {
+      run: async () => ({ exitCode: 0 }),
+    },
+    locateVersionedServerJar: async () => ({ fullPath: path.join(serverDir, 'target', 'lumu99-server-1.1.8.jar') }),
+    copyServerJarToFixedName: async () => {},
+    createServerRestartPlan: () => ({ steps: [] }),
+    writeLine: () => {},
+  });
+
+  const result = await command.run('server');
+  const envContent = await readFile(envPath, 'utf8');
+
+  assert.equal(result.exitCode, 0);
+  assert.match(envContent, /^SPRING_PROFILES_ACTIVE=local\s*$/m);
+  assert.match(envContent, /^NEW_REDIS_HOST=127\.0\.0\.1\s*$/m);
+  assert.doesNotMatch(envContent, /^SPRING_PROFILES_ACTIVE=dev\s*$/m);
+});
+
+test('build server stops before maven build when check server fails', async (t) => {
+  const serverDir = await mkdtemp(path.join(os.tmpdir(), 'lm-tool-build-'));
+  t.after(() => rm(serverDir, { recursive: true, force: true }));
+
+  const examplePath = path.join(serverDir, '.env.example');
+  await writeFile(examplePath, 'SPRING_PROFILES_ACTIVE=prod\n');
+
+  const sequence = [];
+  const command = createBuildCommand({
+    configStore: {
+      load: async () => createServerConfig(serverDir),
+    },
+    executor: {
+      run: async ({ label }) => {
+        sequence.push(label);
+        return { exitCode: 0 };
+      },
+    },
+    checkCommand: {
+      run: async (target) => {
+        sequence.push(`check:${target}`);
+        return { exitCode: 9 };
+      },
+    },
+    locateVersionedServerJar: async () => ({ fullPath: path.join(serverDir, 'target', 'lumu99-server-1.1.8.jar') }),
+    copyServerJarToFixedName: async () => {
+      sequence.push('copy-jar');
+    },
+    createServerRestartPlan: () => ({ steps: [] }),
+    writeLine: () => {},
+  });
+
+  const result = await command.run('server');
+
+  assert.equal(result.exitCode, 9);
+  assert.deepEqual(sequence, [
+    'git pull',
+    'check:server',
+  ]);
+});

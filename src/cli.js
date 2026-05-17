@@ -79,6 +79,7 @@ export async function runCli(argv, deps) {
     const buildCommand = deps.buildCommand ?? createBuildCommand({
       executor,
       configStore,
+      prompts,
       writeLine,
       writeStdout,
       writeStderr,

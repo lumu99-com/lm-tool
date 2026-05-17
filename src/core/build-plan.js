@@ -62,6 +62,10 @@ export function createBuildPlan({ target, config }) {
     successMessage: 'server 编译成功',
     steps: [
       {
+        kind: 'snapshot-server-example',
+        label: 'snapshot server example',
+      },
+      {
         kind: 'command',
         label: 'git pull',
         infoLabel: '拉取 server 仓库最新代码',
@@ -69,6 +73,18 @@ export function createBuildPlan({ target, config }) {
         command: 'git',
         args: ['pull'],
         cwd: projectDir,
+      },
+      {
+        kind: 'sync-server-env',
+        label: 'sync server env',
+        infoLabel: '对齐 server 项目的 .env 配置',
+        startMessage: '正在对齐 server 项目的 .env 配置',
+      },
+      {
+        kind: 'check-server-env',
+        label: 'check server env',
+        infoLabel: '检查 server 项目的环境变量',
+        startMessage: '正在检查 server 项目的环境变量',
       },
       {
         kind: 'command',
