@@ -11,6 +11,27 @@ Current commands:
 - `lm build`
 - `lm help`
 
+## Direct `lm` command
+
+If you want to type `lm build` directly, run this once:
+
+```bash
+npm run setup:global
+```
+
+On Windows, this does two things:
+
+- runs `npm link`
+- disables npm's generated `lm.ps1` shim so PowerShell falls back to `lm.cmd`
+
+After that you can run:
+
+```bash
+lm help
+lm init
+lm build
+```
+
 ## Run from source
 
 ```bash
