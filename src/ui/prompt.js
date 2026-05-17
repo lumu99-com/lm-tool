@@ -50,6 +50,13 @@ export function createPromptUi({ input = process.stdin, output = process.stdout 
         hint: '请输入本机仓库目录，程序会自动校验是否存在',
       });
     },
+    async inputEnvValue(key) {
+      return promptText({
+        input,
+        output,
+        message: `请输入 ${key} 的值`,
+      });
+    },
     async inputCloneParentDir() {
       output.write('请输入项目父目录，不存在会自动创建\n');
       output.write('缺失仓库会自动 clone 到该目录下\n');
