@@ -7,7 +7,12 @@ import { createPromptUi } from './ui/prompt.js';
 import path from 'node:path';
 
 export async function runCli(argv, deps) {
-  const command = argv[0] ?? 'help';
+  const command = argv[0];
+
+  if (!command) {
+    deps.writeLine('命令错误，请使用 lm help 查看帮助');
+    return { exitCode: 1 };
+  }
 
   if (command === 'help') {
     deps.writeLine(buildHelpText());
@@ -38,6 +43,6 @@ export async function runCli(argv, deps) {
     return buildCommand.run(target);
   }
 
-  deps.writeLine('Unknown command');
+  deps.writeLine('命令错误，请使用 lm help 查看帮助');
   return { exitCode: 1 };
 }
