@@ -1,3 +1,5 @@
 node_modules/
 dist/
 tests/
+docs/
+src/lm.config.json
