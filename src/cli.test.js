@@ -16,3 +16,24 @@ test('lm check help prints check help text', async () => {
   assert.equal(result.exitCode, 0);
   assert.match(lines.join('\n'), /lm check server/);
 });
+
+test('lm check server routes to the check command', async () => {
+  const targets = [];
+  const result = await runCli(['check', 'server'], {
+    writeLine: () => {},
+    executor: { run: async () => ({ exitCode: 0 }) },
+    prompts: {},
+    configStore: {},
+    executableDir: process.cwd(),
+    selfUpdatePreflight: async () => ({ exitCode: 0, shouldReexec: false }),
+    checkCommand: {
+      run: async (target) => {
+        targets.push(target);
+        return { exitCode: 0 };
+      },
+    },
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(targets, ['server']);
+});

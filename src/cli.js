@@ -1,12 +1,16 @@
-import { buildHelpText } from './core/help-registry.js';
-import { createConfigStore } from './core/config.js';
-import { createExecutor } from './core/executor.js';
-import { createBuildCommand } from './commands/build.js';
-import { createInitCommand } from './commands/init.js';
-import { runSelfUpdatePreflight } from './core/self-update.js';
-import { createPromptUi } from './ui/prompt.js';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+
+import { createBuildCommand } from './commands/build.js';
+import { createCheckCommand } from './commands/check.js';
+import { createInitCommand } from './commands/init.js';
+import { createConfigStore } from './core/config.js';
+import { createExecutor } from './core/executor.js';
+import { buildHelpText } from './core/help-registry.js';
+import { runSelfUpdatePreflight } from './core/self-update.js';
+import { createPromptUi } from './ui/prompt.js';
+
+const COMMAND_ERROR_MESSAGE = '命令错误，请使用 lm help 查看帮助';
 
 export async function runCli(argv, deps) {
   const command = argv[0];
@@ -39,7 +43,7 @@ export async function runCli(argv, deps) {
   }
 
   if (!command) {
-    writeLine('命令错误，请使用 lm help 查看帮助');
+    writeLine(COMMAND_ERROR_MESSAGE);
     return { exitCode: 1 };
   }
 
@@ -68,7 +72,7 @@ export async function runCli(argv, deps) {
     }
 
     if (!['all', 'server', 'web', 'admin'].includes(target)) {
-      writeLine('命令错误，请使用 lm help 查看帮助');
+      writeLine(COMMAND_ERROR_MESSAGE);
       return { exitCode: 1 };
     }
 
@@ -89,36 +93,21 @@ export async function runCli(argv, deps) {
       return { exitCode: 0 };
     }
 
-    if (target === 'all') {
-      return runCheckAll(writeLine);
+    if (!['all', 'server', 'web', 'admin'].includes(target)) {
+      writeLine(COMMAND_ERROR_MESSAGE);
+      return { exitCode: 1 };
     }
 
-    if (['server', 'web', 'admin'].includes(target)) {
-      return runCheckTarget(target, writeLine);
-    }
-
-    writeLine('命令错误，请使用 lm help 查看帮助');
-    return { exitCode: 1 };
+    const checkCommand = deps.checkCommand ?? createCheckCommand({
+      configStore,
+      prompts,
+      writeLine,
+    });
+    return checkCommand.run(target);
   }
 
-  writeLine('命令错误，请使用 lm help 查看帮助');
+  writeLine(COMMAND_ERROR_MESSAGE);
   return { exitCode: 1 };
-}
-
-async function runCheckAll(writeLine) {
-  for (const target of ['server', 'web', 'admin']) {
-    const result = await runCheckTarget(target, writeLine);
-    if (result.exitCode !== 0) {
-      return result;
-    }
-  }
-
-  return { exitCode: 0 };
-}
-
-async function runCheckTarget(target, writeLine) {
-  writeLine(`${target} 暂无检查项`);
-  return { exitCode: 0 };
 }
 
 async function rerunCurrentProcess() {
