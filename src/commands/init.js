@@ -7,6 +7,8 @@ const PROJECTS = ['server', 'web', 'admin'];
 
 export function createInitCommand(deps) {
   const writeLine = deps.writeLine ?? (() => {});
+  const writeStdout = deps.writeStdout ?? ((chunk) => process.stdout.write(chunk));
+  const writeStderr = deps.writeStderr ?? ((chunk) => process.stderr.write(chunk));
 
   return {
     async run() {
@@ -59,6 +61,8 @@ export function createInitCommand(deps) {
             command: 'git',
             args: ['clone', action.repoUrl, action.targetDir],
             cwd: cloneParentDir,
+            onStdout: writeStdout,
+            onStderr: writeStderr,
           });
 
           if (result.exitCode !== 0) {
