@@ -32,6 +32,16 @@ export function createPromptUi({ input = process.stdin, output = process.stdout 
         formatOption: (option) => option,
       });
     },
+    async selectSelfUpdateAction() {
+      return select({
+        input,
+        output,
+        message: 'lm-tool 有更新，但是 lm-tool 本地仓库有变更',
+        hint: '使用上下方向键选择，Enter 确认',
+        options: ['restore-and-update', 'skip-update'],
+        formatOption: formatSelfUpdateAction,
+      });
+    },
     async inputExistingRepoPath(project) {
       return promptText({
         input,
@@ -63,6 +73,14 @@ function formatRepoState(state) {
   if (state === 'all') return '已拉取三个仓库';
   if (state === 'partial') return '拉取了部分仓库';
   return '未拉取仓库';
+}
+
+function formatSelfUpdateAction(action) {
+  if (action === 'restore-and-update') {
+    return '回退本地变更并更新';
+  }
+
+  return '跳过更新，继续执行当前命令';
 }
 
 async function promptText({ input, output, message, hint }) {

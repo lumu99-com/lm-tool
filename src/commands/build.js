@@ -41,7 +41,7 @@ export function createBuildCommand(deps) {
     for (const step of plan.steps) {
       const result = await runStep(step);
       if (result.exitCode !== 0) {
-        writeLine(`${plan.target} 构建失败：${step.label}`);
+        writeLine(`${plan.target} 构建失败：${step.infoLabel ?? step.label}`);
         return result;
       }
     }
@@ -54,6 +54,7 @@ export function createBuildCommand(deps) {
     if (step.kind === 'command') {
       return executor.run({
         ...step,
+        writeLine,
         onStdout: writeStdout,
         onStderr: writeStderr,
       });
@@ -76,11 +77,13 @@ export function createBuildCommand(deps) {
         const result = restartStep.kind === 'command'
           ? await executor.run({
               ...restartStep,
+              writeLine,
               onStdout: writeStdout,
               onStderr: writeStderr,
             })
           : await (deps.runRuntimeStep ?? runRuntimeStepDefault)(restartStep, {
               executor,
+              writeLine,
               writeStdout,
               writeStderr,
             });
@@ -107,12 +110,15 @@ async function runRuntimeStepDefault(step, context) {
     if (process.platform === 'win32') {
       return context.executor.run({
         label: step.label,
+        infoLabel: step.infoLabel,
+        startMessage: step.startMessage,
         command: 'powershell.exe',
         args: [
           '-Command',
           "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*lumu99-server.jar*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
         ],
         cwd: process.cwd(),
+        writeLine: context.writeLine,
         onStdout: context.writeStdout,
         onStderr: context.writeStderr,
       });
@@ -120,36 +126,66 @@ async function runRuntimeStepDefault(step, context) {
 
     return context.executor.run({
       label: step.label,
+      infoLabel: step.infoLabel,
+      startMessage: step.startMessage,
       command: 'sh',
       args: ['-lc', "pkill -f 'lumu99-server.jar' || true"],
       cwd: process.cwd(),
+      writeLine: context.writeLine,
       onStdout: context.writeStdout,
       onStderr: context.writeStderr,
     });
   }
 
   if (step.kind === 'start-java-server') {
-    const stdoutFd = openSync(step.logPath, 'a');
-    const stderrFd = openSync(step.logPath, 'a');
-    const child = spawn('java', ['-jar', step.jarPath], {
-      cwd: step.serverDir,
-      detached: true,
-      stdio: ['ignore', stdoutFd, stderrFd],
+    return new Promise((resolve) => {
+      context.writeLine?.(step.startMessage);
+
+      try {
+        const stdoutFd = openSync(step.logPath, 'a');
+        const stderrFd = openSync(step.logPath, 'a');
+        const child = spawn('java', ['-jar', step.jarPath], {
+          cwd: step.serverDir,
+          detached: true,
+          stdio: ['ignore', stdoutFd, stderrFd],
+        });
+
+        child.once('error', (error) => {
+          context.writeStderr?.(`${error.message}\n`);
+          context.writeLine?.(`[INFO] ${step.infoLabel} 执行失败`);
+          context.writeLine?.('=======================');
+          resolve({ exitCode: 1 });
+        });
+
+        child.once('spawn', () => {
+          child.unref();
+          context.writeLine?.(`[INFO] ${step.infoLabel} 执行成功`);
+          context.writeLine?.('=======================');
+          resolve({ exitCode: 0 });
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        context.writeStderr?.(`${message}\n`);
+        context.writeLine?.(`[INFO] ${step.infoLabel} 执行失败`);
+        context.writeLine?.('=======================');
+        resolve({ exitCode: 1 });
+      }
     });
-    child.unref();
-    return { exitCode: 0 };
   }
 
   if (step.kind === 'verify-server-process') {
     if (process.platform === 'win32') {
       const result = await context.executor.run({
         label: step.label,
+        infoLabel: step.infoLabel,
+        startMessage: step.startMessage,
         command: 'powershell.exe',
         args: [
           '-Command',
           "if (Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*lumu99-server.jar*' }) { exit 0 } else { exit 1 }",
         ],
         cwd: process.cwd(),
+        writeLine: context.writeLine,
         onStdout: context.writeStdout,
         onStderr: context.writeStderr,
       });
@@ -158,9 +194,12 @@ async function runRuntimeStepDefault(step, context) {
 
     return context.executor.run({
       label: step.label,
+      infoLabel: step.infoLabel,
+      startMessage: step.startMessage,
       command: 'sh',
       args: ['-lc', "pgrep -f 'lumu99-server.jar' >/dev/null"],
       cwd: process.cwd(),
+      writeLine: context.writeLine,
       onStdout: context.writeStdout,
       onStderr: context.writeStderr,
     });

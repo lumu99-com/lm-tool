@@ -11,6 +11,8 @@
 - `lm build`
 - `lm help`
 
+所有 `lm` 命令在正式执行前，都会先检查 `lm-tool` 自身仓库是否有更新。
+
 ## 使用前提
 
 当前版本是源码安装方式，使用前需要先安装：
@@ -49,6 +51,11 @@ lm build server
 lm build web
 lm build admin
 ```
+
+说明：
+
+- `lm`、`lm help`、`lm init`、`lm build...` 在执行前都会先检查 `lm-tool` 是否需要更新
+- 只有 `build` 命令会拉取 `server` / `web` / `admin` 仓库最新代码
 
 ## 新机器安装步骤
 
@@ -111,7 +118,7 @@ lm init
 
 会依次执行：
 
-- `git pull`
+- 输出 `正在拉取 server 仓库最新代码`，执行 `git pull`
 - `mvn clean package -DskipTests`
 - 在 `target` 目录中查找版本号 jar，例如 `lumu99-server-1.1.8.jar`
 - 复制为固定文件名 `target/lumu99-server.jar`
@@ -121,7 +128,7 @@ lm init
 
 会依次执行：
 
-- `git pull`
+- 输出 `正在拉取 web 仓库最新代码`，执行 `git pull`
 - `npm install`
 - `npm run build`
 
@@ -129,7 +136,7 @@ lm init
 
 会依次执行：
 
-- `git pull`
+- 输出 `正在拉取 admin 仓库最新代码`，执行 `git pull`
 - `npm install`
 - `npm run build`
 
@@ -144,7 +151,17 @@ lm init
 特性说明：
 
 - 工具会把原始命令输出实时打印到终端
+- 每个外部命令结束后都会输出 `[INFO] ...` 和 `=======================`
 - 任何一步失败后会立即停止
+
+## 自更新说明
+
+- `lm-tool` 自更新检查的是当前 `lm-tool` 本地仓库
+- 如果检测到远端有新代码，且本地仓库干净，会自动拉取最新代码
+- 如果检测到远端有新代码，但本地仓库有变更，会提示用户通过上下键选择：
+  - `回退本地变更并更新`
+  - `跳过更新，继续执行当前命令`
+- 如果选择更新，工具会先拉取 `lm-tool` 最新代码，再继续当前命令
 
 ## 配置文件位置
 

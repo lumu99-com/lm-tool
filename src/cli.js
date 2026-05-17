@@ -3,11 +3,37 @@ import { createConfigStore } from './core/config.js';
 import { createExecutor } from './core/executor.js';
 import { createBuildCommand } from './commands/build.js';
 import { createInitCommand } from './commands/init.js';
+import { runSelfUpdatePreflight } from './core/self-update.js';
 import { createPromptUi } from './ui/prompt.js';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 
 export async function runCli(argv, deps) {
   const command = argv[0];
+
+  const executableDir = deps.executableDir ?? path.dirname(process.argv[1] ?? process.cwd());
+  const configStore = deps.configStore ?? createConfigStore({ executableDir });
+  const executor = deps.executor ?? createExecutor();
+  const prompts = deps.prompts ?? createPromptUi();
+  const writeStdout = deps.writeStdout ?? ((chunk) => process.stdout.write(chunk));
+  const writeStderr = deps.writeStderr ?? ((chunk) => process.stderr.write(chunk));
+
+  const selfUpdateResult = await runSelfUpdatePreflight({
+    executableDir,
+    executor,
+    prompts,
+    writeLine: deps.writeLine,
+    writeStdout,
+    writeStderr,
+  });
+
+  if (selfUpdateResult.exitCode !== 0) {
+    return { exitCode: selfUpdateResult.exitCode };
+  }
+
+  if (selfUpdateResult.shouldReexec) {
+    return rerunCurrentProcess();
+  }
 
   if (!command) {
     deps.writeLine('命令错误，请使用 lm help 查看帮助');
@@ -19,30 +45,56 @@ export async function runCli(argv, deps) {
     return { exitCode: 0 };
   }
 
-  const executableDir = deps.executableDir ?? path.dirname(process.argv[1] ?? process.cwd());
-  const configStore = deps.configStore ?? createConfigStore({ executableDir });
-  const executor = deps.executor ?? createExecutor();
-
   if (command === 'init') {
     const initCommand = deps.initCommand ?? createInitCommand({
-      prompts: deps.prompts ?? createPromptUi(),
+      prompts,
       executor,
       configStore,
       writeLine: deps.writeLine,
+      writeStdout,
+      writeStderr,
     });
     return initCommand.run();
   }
 
   if (command === 'build') {
     const target = argv[1] ?? 'all';
+    if (!['all', 'server', 'web', 'admin'].includes(target)) {
+      deps.writeLine('命令错误，请使用 lm help 查看帮助');
+      return { exitCode: 1 };
+    }
+
     const buildCommand = deps.buildCommand ?? createBuildCommand({
       executor,
       configStore,
       writeLine: deps.writeLine,
+      writeStdout,
+      writeStderr,
     });
     return buildCommand.run(target);
   }
 
   deps.writeLine('命令错误，请使用 lm help 查看帮助');
   return { exitCode: 1 };
+}
+
+async function rerunCurrentProcess() {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, process.argv.slice(1), {
+      env: {
+        ...process.env,
+        LM_TOOL_SKIP_SELF_UPDATE: '1',
+      },
+      stdio: 'inherit',
+      shell: false,
+    });
+
+    child.on('error', () => {
+      resolve({ exitCode: 1 });
+    });
+
+    child.on('close', (exitCode) => {
+      resolve({ exitCode: exitCode ?? 1 });
+    });
+  });
 }

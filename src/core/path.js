@@ -21,6 +21,6 @@ export async function validateExistingRepoPath(repoPath) {
   try {
     await access(repoPath, constants.F_OK);
   } catch {
-    throw new Error(`Repository path does not exist: ${repoPath}`);
+    throw new Error(`仓库路径不存在：${repoPath}`);
   }
 }

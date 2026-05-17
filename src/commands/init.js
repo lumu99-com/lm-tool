@@ -58,9 +58,12 @@ export function createInitCommand(deps) {
         for (const action of plan.cloneActions) {
           const result = await deps.executor.run({
             label: `git clone ${action.project}`,
+            infoLabel: `克隆 ${action.project} 仓库`,
+            startMessage: `正在克隆 ${action.project} 仓库到 ${action.targetDir}`,
             command: 'git',
             args: ['clone', action.repoUrl, action.targetDir],
             cwd: cloneParentDir,
+            writeLine,
             onStdout: writeStdout,
             onStderr: writeStderr,
           });

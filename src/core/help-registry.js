@@ -8,7 +8,20 @@ export const commandRegistry = [
 ];
 
 export function buildHelpText(commands = commandRegistry) {
-  return commands
+  const commandLines = commands
     .map((command) => `${command.usage} - ${command.description}`)
     .join('\n');
+
+  return [
+    'lm-tool 使用说明',
+    '',
+    '命令列表：',
+    commandLines,
+    '',
+    '使用规则：',
+    '- 执行 lm、lm help、lm init、lm build 前会先检查 lm-tool 是否有更新',
+    '- build 命令才会拉取 server、web、admin 仓库最新代码',
+    '- 所有外部命令都会实时输出原始信息',
+    '- 每个外部命令结束后都会输出 [INFO] 和 =======================',
+  ].join('\n');
 }

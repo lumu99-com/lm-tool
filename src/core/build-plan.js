@@ -14,7 +14,7 @@ export function createBuildPlan({ target, config }) {
 
   const projectDir = config.projects?.[target];
   if (!projectDir) {
-    throw new Error(`Missing project path for ${target}`);
+    throw new Error(`${target} 项目路径未配置，请重新执行 lm init`);
   }
 
   if (target === 'web' || target === 'admin') {
@@ -22,9 +22,33 @@ export function createBuildPlan({ target, config }) {
       target,
       successMessage: `${target} 编译成功`,
       steps: [
-        { kind: 'command', label: 'git pull', command: 'git', args: ['pull'], cwd: projectDir },
-        { kind: 'command', label: 'npm install', command: 'npm', args: ['install'], cwd: projectDir },
-        { kind: 'command', label: 'npm run build', command: 'npm', args: ['run', 'build'], cwd: projectDir },
+        {
+          kind: 'command',
+          label: 'git pull',
+          infoLabel: `拉取 ${target} 仓库最新代码`,
+          startMessage: `正在拉取 ${target} 仓库最新代码`,
+          command: 'git',
+          args: ['pull'],
+          cwd: projectDir,
+        },
+        {
+          kind: 'command',
+          label: 'npm install',
+          infoLabel: `安装 ${target} 项目依赖`,
+          startMessage: `正在安装 ${target} 项目依赖`,
+          command: 'npm',
+          args: ['install'],
+          cwd: projectDir,
+        },
+        {
+          kind: 'command',
+          label: 'npm run build',
+          infoLabel: `构建 ${target} 项目`,
+          startMessage: `正在构建 ${target} 项目`,
+          command: 'npm',
+          args: ['run', 'build'],
+          cwd: projectDir,
+        },
       ],
     };
   }
@@ -37,8 +61,24 @@ export function createBuildPlan({ target, config }) {
     target: 'server',
     successMessage: 'server 编译成功',
     steps: [
-      { kind: 'command', label: 'git pull', command: 'git', args: ['pull'], cwd: projectDir },
-      { kind: 'command', label: 'mvn clean package -DskipTests', command: 'mvn', args: ['clean', 'package', '-DskipTests'], cwd: projectDir },
+      {
+        kind: 'command',
+        label: 'git pull',
+        infoLabel: '拉取 server 仓库最新代码',
+        startMessage: '正在拉取 server 仓库最新代码',
+        command: 'git',
+        args: ['pull'],
+        cwd: projectDir,
+      },
+      {
+        kind: 'command',
+        label: 'mvn clean package -DskipTests',
+        infoLabel: '编译 server 项目',
+        startMessage: '正在编译 server 项目',
+        command: 'mvn',
+        args: ['clean', 'package', '-DskipTests'],
+        cwd: projectDir,
+      },
       { kind: 'copy-server-jar', label: 'copy server jar', targetDir, fixedJarPath },
       {
         kind: 'restart-server',
