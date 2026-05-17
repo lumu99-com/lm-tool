@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { createBuildCommand } from './commands/build.js';
 import { createCheckCommand } from './commands/check.js';
 import { createInitCommand } from './commands/init.js';
+import { createMysqlCommand } from './commands/mysql.js';
 import { createConfigStore } from './core/config.js';
 import { createExecutor } from './core/executor.js';
 import { buildHelpText } from './core/help-registry.js';
@@ -127,6 +128,29 @@ export async function runCli(argv, deps) {
       writeLine,
     });
     return checkCommand.run(target);
+  }
+
+  if (command === 'mysql') {
+    const target = subcommand ?? 'summary';
+    if (target === 'help') {
+      writeLine(buildHelpText('mysql'));
+      return { exitCode: 0 };
+    }
+
+    if (!['summary', 'init', 'user'].includes(target)) {
+      writeLine(COMMAND_ERROR_MESSAGE);
+      return { exitCode: 1 };
+    }
+
+    const mysqlCommand = deps.mysqlCommand ?? createMysqlCommand({
+      configStore,
+      prompts,
+      executor,
+      writeLine,
+      writeStdout,
+      writeStderr,
+    });
+    return mysqlCommand.run(target);
   }
 
   writeLine(COMMAND_ERROR_MESSAGE);

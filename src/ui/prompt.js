@@ -7,7 +7,7 @@ export function createPromptUi({ input = process.stdin, output = process.stdout 
         input,
         output,
         message: '请选择当前平台',
-        hint: '使用 ↑/↓ 选择，Enter 确认',
+        hint: '使用上下方向键选择，Enter 确认',
         options: ['windows', 'macos', 'linux'],
         formatOption: formatPlatform,
       });
@@ -17,7 +17,7 @@ export function createPromptUi({ input = process.stdin, output = process.stdout 
         input,
         output,
         message: '请选择仓库状态',
-        hint: '使用 ↑/↓ 选择，Enter 确认',
+        hint: '使用上下方向键选择，Enter 确认',
         options: ['all', 'partial', 'none'],
         formatOption: formatRepoState,
       });
@@ -27,7 +27,7 @@ export function createPromptUi({ input = process.stdin, output = process.stdout 
         input,
         output,
         message: '哪些仓库已经存在？',
-        hint: '使用 ↑/↓ 移动，Space 勾选/取消，Enter 确认',
+        hint: '使用上下方向键移动，Space 勾选或取消，Enter 确认',
         options: ['server', 'web', 'admin'],
         formatOption: (option) => option,
       });
@@ -40,6 +40,26 @@ export function createPromptUi({ input = process.stdin, output = process.stdout 
         hint: '使用上下方向键选择，Enter 确认',
         options: ['restore-and-update', 'skip-update'],
         formatOption: formatSelfUpdateAction,
+      });
+    },
+    async selectMysqlInitAction() {
+      return select({
+        input,
+        output,
+        message: 'lumu99 数据库已存在，该操作会清空现有数据，是否继续？',
+        hint: '使用上下方向键选择，Enter 确认',
+        options: ['recreate', 'cancel'],
+        formatOption: formatMysqlInitAction,
+      });
+    },
+    async selectMysqlUserRole() {
+      return select({
+        input,
+        output,
+        message: '请选择要创建用户的角色',
+        hint: '使用上下方向键选择，Enter 确认',
+        options: ['ADMIN', 'USER'],
+        formatOption: (option) => option,
       });
     },
     async inputExistingRepoPath(project) {
@@ -59,12 +79,54 @@ export function createPromptUi({ input = process.stdin, output = process.stdout 
     },
     async inputCloneParentDir() {
       output.write('请输入项目父目录，不存在会自动创建\n');
-      output.write('缺失仓库会自动 clone 到该目录下\n');
+      output.write('缺失仓库会自动 clone 到该目录中\n');
       output.write('如果 git clone 提示无权限，请联系 @幻仔\n');
       return promptText({
         input,
         output,
         message: '请输入项目父目录',
+      });
+    },
+    async inputMysqlPort(defaultValue = 3306) {
+      return promptText({
+        input,
+        output,
+        message: '请输入本地 MySQL 端口',
+        hint: `直接回车使用默认端口 ${defaultValue}`,
+        defaultValue: String(defaultValue),
+      });
+    },
+    async inputMysqlUsername(defaultValue = 'root') {
+      return promptText({
+        input,
+        output,
+        message: '请输入本地 MySQL 用户名',
+        hint: `直接回车使用默认用户名 ${defaultValue}`,
+        defaultValue,
+      });
+    },
+    async inputMysqlPassword(defaultValue = '') {
+      return promptText({
+        input,
+        output,
+        message: '请输入本地 MySQL 密码',
+        hint: '直接回车表示空密码',
+        defaultValue,
+        defaultValueLabel: defaultValue === '' ? '空密码' : defaultValue,
+      });
+    },
+    async inputMysqlNewUsername() {
+      return promptText({
+        input,
+        output,
+        message: '请输入要创建的用户名',
+      });
+    },
+    async inputMysqlNewPassword() {
+      return promptText({
+        input,
+        output,
+        message: '请输入要创建的密码',
       });
     },
   };
@@ -90,15 +152,42 @@ function formatSelfUpdateAction(action) {
   return '跳过更新，继续执行当前命令';
 }
 
-async function promptText({ input, output, message, hint }) {
+function formatMysqlInitAction(action) {
+  if (action === 'recreate') {
+    return '确认删除并重建';
+  }
+
+  return '取消初始化';
+}
+
+async function promptText({
+  input,
+  output,
+  message,
+  hint,
+  defaultValue,
+  defaultValueLabel,
+}) {
   if (hint) {
     output.write(`${hint}\n`);
   }
 
   const rl = readline.createInterface({ input, output });
+  const defaultSuffix = defaultValue !== undefined
+    ? `（默认：${defaultValueLabel ?? defaultValue}）`
+    : '';
+
   try {
     return await new Promise((resolve) => {
-      rl.question(`${message}: `, (answer) => resolve(answer.trim()));
+      rl.question(`${message}${defaultSuffix}: `, (answer) => {
+        const trimmed = answer.trim();
+        if (trimmed === '' && defaultValue !== undefined) {
+          resolve(String(defaultValue));
+          return;
+        }
+
+        resolve(trimmed);
+      });
     });
   } finally {
     rl.close();

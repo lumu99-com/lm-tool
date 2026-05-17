@@ -2,22 +2,36 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildHelpText } from './help-registry.js';
 
+function extractCommandSection(scope) {
+  const text = buildHelpText(scope);
+  return text.split('\n\n')[1] ?? '';
+}
+
 test('root help includes lm update command', () => {
-  const text = buildHelpText('root');
-  const commandSection = text.split('\n\n使用规则：')[0];
+  const commandSection = extractCommandSection('root');
   assert.match(commandSection, /lm update/);
 });
 
+test('root help includes lm mysql command', () => {
+  const commandSection = extractCommandSection('root');
+  assert.match(commandSection, /lm mysql/);
+});
+
 test('build help only includes build commands', () => {
-  const text = buildHelpText('build');
-  const commandSection = text.split('\n\n使用规则：')[0];
+  const commandSection = extractCommandSection('build');
   assert.match(commandSection, /lm build server/);
   assert.doesNotMatch(commandSection, /lm check server/);
 });
 
 test('init help only includes init commands', () => {
-  const text = buildHelpText('init');
-  const commandSection = text.split('\n\n使用规则：')[0];
+  const commandSection = extractCommandSection('init');
   assert.match(commandSection, /lm init help/);
+  assert.doesNotMatch(commandSection, /lm build server/);
+});
+
+test('mysql help only includes mysql commands', () => {
+  const commandSection = extractCommandSection('mysql');
+  assert.match(commandSection, /lm mysql init/);
+  assert.match(commandSection, /lm mysql user/);
   assert.doesNotMatch(commandSection, /lm build server/);
 });

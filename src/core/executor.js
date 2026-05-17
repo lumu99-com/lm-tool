@@ -19,6 +19,10 @@ export function createExecutor({ spawnImpl = spawn } = {}) {
 
         let settled = false;
 
+        if (input.stdinText !== undefined) {
+          child.stdin?.end(input.stdinText);
+        }
+
         child.stdout?.on('data', (chunk) => {
           const text = String(chunk);
           if (shouldCaptureOutput) {

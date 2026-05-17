@@ -183,3 +183,97 @@ test('build server stops before maven build when check server fails', async (t) 
     'check:server',
   ]);
 });
+
+test('windows build web launches a new dev window instead of npm run build', async () => {
+  const calls = [];
+  const command = createBuildCommand({
+    configStore: {
+      load: async () => ({
+        platform: 'windows',
+        projects: {
+          web: 'D:\\Project\\lumu99\\lumu99-web',
+        },
+        server: {
+          fixedJarName: 'lumu99-server.jar',
+          logFile: 'logs/server.log',
+          linuxServiceName: 'lumu99-server',
+        },
+      }),
+    },
+    executor: {
+      run: async ({ label, command: commandName, args, cwd }) => {
+        calls.push({ label, commandName, args, cwd });
+        return { exitCode: 0 };
+      },
+    },
+    writeLine: () => {},
+  });
+
+  const result = await command.run('web');
+
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(calls.map((call) => call.label), [
+    'git pull',
+    'npm install',
+    'start web dev window',
+  ]);
+  assert.equal(calls[2].commandName, 'powershell.exe');
+  assert.match(calls[2].args.join(' '), /npm run dev/);
+  assert.doesNotMatch(calls.map((call) => call.label).join('\n'), /npm run build/);
+});
+
+test('windows build all launches web and admin dev windows after server build', async (t) => {
+  const serverDir = await mkdtemp(path.join(os.tmpdir(), 'lm-tool-build-all-'));
+  t.after(() => rm(serverDir, { recursive: true, force: true }));
+
+  const calls = [];
+  const command = createBuildCommand({
+    configStore: {
+      load: async () => ({
+        platform: 'windows',
+        projects: {
+          server: serverDir,
+          web: 'D:\\Project\\lumu99\\lumu99-web',
+          admin: 'D:\\Project\\lumu99\\lumu99-admin',
+        },
+        server: {
+          fixedJarName: 'lumu99-server.jar',
+          logFile: 'logs/server.log',
+          linuxServiceName: 'lumu99-server',
+        },
+      }),
+    },
+    executor: {
+      run: async ({ label, command: commandName, args, cwd }) => {
+        calls.push({ label, commandName, args, cwd });
+        return { exitCode: 0 };
+      },
+    },
+    checkCommand: {
+      run: async () => ({ exitCode: 0 }),
+    },
+    locateVersionedServerJar: async () => ({ fullPath: path.join(serverDir, 'target', 'lumu99-server-1.1.8.jar') }),
+    copyServerJarToFixedName: async () => {
+      calls.push({ label: 'copy-jar' });
+    },
+    createServerRestartPlan: () => ({ steps: [] }),
+    writeLine: () => {},
+  });
+
+  const result = await command.run('all');
+
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(calls.map((call) => call.label), [
+    'git pull',
+    'mvn clean package -DskipTests',
+    'copy-jar',
+    'git pull',
+    'npm install',
+    'start web dev window',
+    'git pull',
+    'npm install',
+    'start admin dev window',
+  ]);
+  assert.equal(calls[5].commandName, 'powershell.exe');
+  assert.equal(calls[8].commandName, 'powershell.exe');
+});

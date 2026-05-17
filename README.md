@@ -50,15 +50,21 @@ lm build admin
 lm check
 lm check help
 lm check server
+lm mysql
+lm mysql help
+lm mysql init
+lm mysql user
 lm update
 ```
 
 说明：
 
-- 在已经生成 `lm.config.json` 的前提下，`lm`、`lm help`、`lm init`、`lm build...`、`lm check...` 每天第一次执行时会先检查 `lm-tool` 是否需要更新
+- 在已经生成 `lm.config.json` 的前提下，`lm`、`lm help`、`lm init`、`lm build...`、`lm check...`、`lm mysql...` 每天第一次执行时会先检查 `lm-tool` 是否需要更新
 - `lm init help` 只显示初始化帮助，不会执行初始化
 - `lm init` 会先检查本机 `JDK 17`、`Maven 3.9+`、`MySQL 8`、`Redis 6+`
 - 只有 `build` 命令会拉取 `server` / `web` / `admin` 仓库最新代码
+- `lm build web` 和 `lm build admin` 在 Linux 上执行 `npm run build`，在 Windows / macOS 上会新开终端窗口执行 `npm run dev`
+- `lm mysql` 用于查看本地 MySQL 配置，`lm mysql init` 和 `lm mysql user` 用于初始化本地数据库与创建本地用户
 - `lm update` 会立即手动检查并更新 `lm-tool`
 
 ## 直接从源码运行
@@ -137,7 +143,16 @@ lm init
 
 - 输出 `正在拉取 web 仓库最新代码`，执行 `git pull`
 - `npm install`
+
+Linux 下：
+
 - `npm run build`
+
+Windows 和 macOS 下：
+
+- 新开一个可见终端窗口执行 `npm run dev`
+- 在新窗口中直接查看原始 dev 输出和本地访问端口
+- 关闭该窗口即可停止对应的 web 本地开发服务
 
 ### `lm build admin`
 
@@ -145,7 +160,16 @@ lm init
 
 - 输出 `正在拉取 admin 仓库最新代码`，执行 `git pull`
 - `npm install`
+
+Linux 下：
+
 - `npm run build`
+
+Windows 和 macOS 下：
+
+- 新开一个可见终端窗口执行 `npm run dev`
+- 在新窗口中直接查看原始 dev 输出和本地访问端口
+- 关闭该窗口即可停止对应的 admin 本地开发服务
 
 ### `lm build`
 
@@ -160,6 +184,7 @@ lm init
 - 工具会把原始命令输出实时打印到终端
 - 每个外部命令结束后都会输出 `[INFO] ...` 和 `=======================`
 - 任何一步失败后会立即停止
+- Linux 上的 `web` / `admin` 会产出构建结果，Windows 和 macOS 上的 `web` / `admin` 会分别打开新的 dev 窗口
 
 ## 检查说明
 
@@ -192,6 +217,66 @@ lm init
 
 显示 `check` 命令的子命令帮助。
 
+## MySQL 说明
+
+### `lm mysql`
+
+会输出当前配置文件中的本地 MySQL 配置：
+
+- 端口
+- 用户名
+- 密码状态：未配置 / 空密码 / 已设置密码
+
+然后提示你执行 `lm mysql help` 查看详细帮助。
+
+### `lm mysql init`
+
+会执行以下流程：
+
+1. 如果 `lm.config.json` 中没有完整的 MySQL 连接配置，则依次提示输入：
+   - 本地 MySQL 端口，默认 `3306`
+   - 本地 MySQL 用户名，默认 `root`
+   - 本地 MySQL 密码，直接回车表示空密码
+2. 将补录后的 MySQL 配置写回 `lm.config.json`
+3. 从配置中的 `projects.server` 路径定位 `src/main/resources/db/migration`
+4. 检查本地 MySQL 中是否已存在 `lumu99` 数据库
+5. 如果已存在，则通过上下键提示：
+   - `确认删除并重建`
+   - `取消初始化`
+6. 执行：
+
+```sql
+create schema lumu99 collate utf8mb4_unicode_ci;
+```
+
+7. 按版本顺序逐个执行 `V<number>__*.sql` 迁移文件
+
+说明：
+
+- `lm mysql init` 依赖配置中的 `projects.server` 路径
+- 如果还没有执行过 `lm init`，会在保存 MySQL 配置后提示你先完成 `lm init`
+- 所有 `mysql` 外部命令同样会实时透传原始输出，并在结束后打印 `[INFO] ...`
+
+### `lm mysql user`
+
+会执行以下流程：
+
+1. 如果 `lm.config.json` 中没有完整的 MySQL 连接配置，则先补录并保存
+2. 提示输入要创建的用户名和密码，密码为明文可见输入
+3. 通过上下键选择角色：`ADMIN` 或 `USER`
+4. 使用 `bcrypt` 生成版本 `2a`、cost `10` 的密码哈希
+5. 向 `lumu99.users` 表插入一条本地用户数据
+
+说明：
+
+- `user_uuid`、`weibo_uid`、`weibo_link`、`t_family_id` 会自动生成随机值
+- 可为空的字段会写入 `null`
+- `status`、`mute_status`、时间字段使用数据库默认值
+
+### `lm mysql help`
+
+显示 `mysql` 命令的子命令帮助。
+
 ### `lm update`
 
 会立即检查当前 `lm-tool` 仓库是否有更新：
@@ -207,12 +292,13 @@ lm init
 - `lm init help`：显示 `init` 子命令帮助
 - `lm build help`：显示 `build` 子命令帮助
 - `lm check help`：显示 `check` 子命令帮助
+- `lm mysql help`：显示 `mysql` 子命令帮助
 
 ## 自更新说明
 
 - `lm-tool` 自更新检查的是当前 `lm-tool` 本地仓库
 - 自动检查只会在已存在 `lm.config.json` 时启用，并把当天检查日期记录到 `selfUpdate.lastCheckedDate`
-- 如果当天已经检查过，后续 `lm`、`lm help`、`lm init`、`lm build...`、`lm check...` 不会重复检查
+- 如果当天已经检查过，后续 `lm`、`lm help`、`lm init`、`lm build...`、`lm check...`、`lm mysql...` 不会重复检查
 - 如果检测到远端有新代码，且本地仓库干净，会自动拉取最新代码
 - 自动检查拉取到新代码后，会提示并重新执行当前命令
 - 如果检测到远端有新代码，但本地仓库有变更，会提示用户通过上下键选择：

@@ -50,3 +50,71 @@ test('build plans keep git and maven commands unprivileged on linux', () => {
   assert.equal(mavenStep.command, 'mvn');
   assert.deepEqual(mavenStep.args, ['clean', 'package', '-DskipTests']);
 });
+
+test('linux build web keeps npm run build step', () => {
+  const plan = createBuildPlan({
+    target: 'web',
+    config: createFrontendConfig({
+      platform: 'linux',
+      webDir: '/srv/lumu99/web',
+      adminDir: '/srv/lumu99/admin',
+    }),
+  });
+
+  const buildStep = plan.steps.find((step) => step.label === 'npm run build');
+
+  assert.equal(buildStep.command, 'npm');
+  assert.deepEqual(buildStep.args, ['run', 'build']);
+});
+
+test('windows build web launches a visible dev window instead of npm run build', () => {
+  const plan = createBuildPlan({
+    target: 'web',
+    config: createFrontendConfig({
+      platform: 'windows',
+      webDir: 'D:\\Project\\lumu99\\lumu99-web',
+      adminDir: 'D:\\Project\\lumu99\\lumu99-admin',
+    }),
+  });
+
+  const buildStep = plan.steps.find((step) => step.label === 'npm run build');
+  const devWindowStep = plan.steps.find((step) => step.label === 'start web dev window');
+
+  assert.equal(buildStep, undefined);
+  assert.equal(devWindowStep.command, 'powershell.exe');
+  assert.match(devWindowStep.args.join(' '), /Start-Process/);
+  assert.match(devWindowStep.args.join(' '), /npm run dev/);
+});
+
+test('macos build admin launches dev in terminal via osascript', () => {
+  const plan = createBuildPlan({
+    target: 'admin',
+    config: createFrontendConfig({
+      platform: 'macos',
+      webDir: '/Users/dev/lumu99-web',
+      adminDir: '/Users/dev/lumu99-admin',
+    }),
+  });
+
+  const devWindowStep = plan.steps.find((step) => step.label === 'start admin dev window');
+
+  assert.equal(devWindowStep.command, 'osascript');
+  assert.match(devWindowStep.args.join(' '), /npm run dev/);
+  assert.match(devWindowStep.args.join(' '), /Terminal/);
+});
+
+function createFrontendConfig({ platform, webDir, adminDir }) {
+  return {
+    platform,
+    projects: {
+      web: webDir,
+      admin: adminDir,
+    },
+    server: {
+      fixedJarName: 'lumu99-server.jar',
+      linuxServiceName: 'lumu99-server',
+      logFile: 'logs/server.log',
+      linuxUseSudoForServiceCommands: true,
+    },
+  };
+}
