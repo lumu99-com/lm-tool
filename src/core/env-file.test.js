@@ -189,3 +189,26 @@ test('syncAddedExampleLines does not insert a modified old comment', () => {
     'A=9',
   ]);
 });
+
+test('syncAddedExampleLines keeps a real new comment before a replaced old comment in the same block', () => {
+  const result = syncAddedExampleLines({
+    beforeExampleLines: [
+      '# Base',
+      'A=1',
+    ],
+    afterExampleLines: [
+      '# Redis',
+      '# Base Config',
+      'A=1',
+    ],
+    envLines: [
+      'A=9',
+    ],
+  });
+
+  assert.equal(result.changed, true);
+  assert.deepEqual(result.lines, [
+    '# Redis',
+    'A=9',
+  ]);
+});

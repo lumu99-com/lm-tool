@@ -190,14 +190,18 @@ function buildLcsMatrix(beforeLines, afterLines) {
 
 function collectInsertableLines({ candidateLines, removedLines, envLines }) {
   const parsedEnvLines = parseEnvLines(envLines);
-  let removedCommentSlots = parseEnvLines(removedLines)
-    .filter((line) => line.kind === 'comment')
-    .length;
+  const parsedRemovedLines = parseEnvLines(removedLines);
   const removedKeys = new Set(
-    parseEnvLines(removedLines)
+    parsedRemovedLines
       .filter((line) => line.kind === 'key')
       .map((line) => line.key),
   );
+  const replacedCommentIndexes = findReplacedCommentIndexes({
+    removedComments: parsedRemovedLines
+      .filter((line) => line.kind === 'comment')
+      .map((line) => line.raw),
+    candidateLines,
+  });
   const existingKeys = new Set(
     parsedEnvLines
       .filter((line) => line.kind === 'key')
@@ -210,7 +214,7 @@ function collectInsertableLines({ candidateLines, removedLines, envLines }) {
   );
   const insertLines = [];
 
-  for (const rawLine of candidateLines) {
+  for (const [index, rawLine] of candidateLines.entries()) {
     const parsedLine = parseEnvLine(rawLine);
 
     if (parsedLine.kind === 'key') {
@@ -224,8 +228,7 @@ function collectInsertableLines({ candidateLines, removedLines, envLines }) {
     }
 
     if (parsedLine.kind === 'comment') {
-      if (removedCommentSlots > 0) {
-        removedCommentSlots -= 1;
+      if (replacedCommentIndexes.has(index)) {
         continue;
       }
 
@@ -239,6 +242,124 @@ function collectInsertableLines({ candidateLines, removedLines, envLines }) {
   }
 
   return insertLines;
+}
+
+function findReplacedCommentIndexes({ removedComments, candidateLines }) {
+  const candidateComments = candidateLines
+    .map((raw, index) => ({ index, raw, parsed: parseEnvLine(raw) }))
+    .filter((line) => line.parsed.kind === 'comment');
+  const scoredMatches = [];
+
+  for (let removedIndex = 0; removedIndex < removedComments.length; removedIndex += 1) {
+    for (const candidate of candidateComments) {
+      const similarity = getCommentReplacementSimilarity(removedComments[removedIndex], candidate.raw);
+      if (similarity.overall < 0.6) {
+        continue;
+      }
+
+      scoredMatches.push({
+        removedIndex,
+        candidateIndex: candidate.index,
+        overall: similarity.overall,
+        prefix: similarity.prefix,
+        token: similarity.token,
+      });
+    }
+  }
+
+  scoredMatches.sort((left, right) => {
+    if (right.overall !== left.overall) {
+      return right.overall - left.overall;
+    }
+
+    if (right.prefix !== left.prefix) {
+      return right.prefix - left.prefix;
+    }
+
+    if (right.token !== left.token) {
+      return right.token - left.token;
+    }
+
+    return left.candidateIndex - right.candidateIndex;
+  });
+
+  const matchedRemovedIndexes = new Set();
+  const matchedCandidateIndexes = new Set();
+
+  for (const match of scoredMatches) {
+    if (matchedRemovedIndexes.has(match.removedIndex) || matchedCandidateIndexes.has(match.candidateIndex)) {
+      continue;
+    }
+
+    matchedRemovedIndexes.add(match.removedIndex);
+    matchedCandidateIndexes.add(match.candidateIndex);
+  }
+
+  return matchedCandidateIndexes;
+}
+
+function getCommentReplacementSimilarity(removedComment, candidateComment) {
+  const removedText = normalizeCommentText(removedComment);
+  const candidateText = normalizeCommentText(candidateComment);
+
+  if (!removedText || !candidateText) {
+    return { overall: 0, prefix: 0, token: 0 };
+  }
+
+  if (removedText === candidateText) {
+    return { overall: 1, prefix: 1, token: 1 };
+  }
+
+  const removedTokens = tokenizeComment(removedText);
+  const candidateTokens = tokenizeComment(candidateText);
+  const token = removedTokens.length === 0
+    ? 0
+    : countSharedTokens(removedTokens, candidateTokens) / removedTokens.length;
+  const prefix = commonPrefixLength(removedText, candidateText) / Math.min(removedText.length, candidateText.length);
+
+  return {
+    overall: Math.max(token, prefix),
+    prefix,
+    token,
+  };
+}
+
+function normalizeCommentText(rawComment) {
+  return rawComment
+    .replace(/^#+/, '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function tokenizeComment(commentText) {
+  return commentText
+    .split(/[^a-z0-9]+/i)
+    .filter(Boolean);
+}
+
+function countSharedTokens(leftTokens, rightTokens) {
+  const rightTokenSet = new Set(rightTokens);
+  let count = 0;
+
+  for (const token of leftTokens) {
+    if (rightTokenSet.has(token)) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+function commonPrefixLength(left, right) {
+  const maxLength = Math.min(left.length, right.length);
+  let length = 0;
+
+  while (length < maxLength && left[length] === right[length]) {
+    length += 1;
+  }
+
+  return length;
 }
 
 function findInsertionIndex({ envLines, previousAnchor, nextAnchor }) {
