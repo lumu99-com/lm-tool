@@ -1,29 +1,37 @@
 import { mkdir } from 'node:fs/promises';
 
+import { createCheckCommand } from './check.js';
 import { createInitPlan } from '../core/init-plan.js';
 import { normalizeProjectPath, validateExistingRepoPath } from '../core/path.js';
 
 const PROJECTS = ['server', 'web', 'admin'];
 
 export function createInitCommand(deps) {
+  const configStore = deps.configStore;
+  const prompts = deps.prompts;
   const writeLine = deps.writeLine ?? (() => {});
   const writeStdout = deps.writeStdout ?? ((chunk) => process.stdout.write(chunk));
   const writeStderr = deps.writeStderr ?? ((chunk) => process.stderr.write(chunk));
+  const checkCommand = deps.checkCommand ?? createCheckCommand({
+    configStore,
+    prompts,
+    writeLine,
+  });
 
   return {
     async run() {
       try {
-        const platform = await deps.prompts.selectPlatform();
-        const repoState = await deps.prompts.selectRepoState();
+        const platform = await prompts.selectPlatform();
+        const repoState = await prompts.selectRepoState();
         const existingRepos = repoState === 'all'
           ? [...PROJECTS]
           : repoState === 'partial'
-            ? await deps.prompts.selectExistingRepos()
+            ? await prompts.selectExistingRepos()
             : [];
 
         const existingPaths = {};
         for (const project of existingRepos) {
-          const inputPath = await deps.prompts.inputExistingRepoPath(project);
+          const inputPath = await prompts.inputExistingRepoPath(project);
           const normalized = normalizeProjectPath({
             input: inputPath,
             platform,
@@ -35,7 +43,7 @@ export function createInitCommand(deps) {
 
         let cloneParentDir;
         if (existingRepos.length !== PROJECTS.length) {
-          const inputCloneParentDir = await deps.prompts.inputCloneParentDir();
+          const inputCloneParentDir = await prompts.inputCloneParentDir();
           cloneParentDir = normalizeProjectPath({
             input: inputCloneParentDir,
             platform,
@@ -50,6 +58,8 @@ export function createInitCommand(deps) {
           existingPaths,
           cloneParentDir,
         });
+
+        let serverClonedInRun = false;
 
         for (const mkdirPath of plan.mkdirPaths) {
           await (deps.mkdirImpl ?? mkdir)(mkdirPath, { recursive: true });
@@ -72,9 +82,21 @@ export function createInitCommand(deps) {
             writeLine('仓库拉取失败，如无权限请联系 @幻仔');
             return { exitCode: result.exitCode };
           }
+
+          if (action.project === 'server') {
+            serverClonedInRun = true;
+          }
         }
 
-        await deps.configStore.save(plan.config);
+        await configStore.save(plan.config);
+
+        if (serverClonedInRun) {
+          const checkResult = await checkCommand.run('server');
+          if (checkResult.exitCode !== 0) {
+            return checkResult;
+          }
+        }
+
         writeLine('初始化完成');
         return { exitCode: 0 };
       } catch (error) {
