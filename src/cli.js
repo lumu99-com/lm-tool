@@ -53,6 +53,16 @@ export async function runCli(argv, deps) {
   }
 
   if (command === 'init') {
+    if (subcommand === 'help') {
+      writeLine(buildHelpText('init'));
+      return { exitCode: 0 };
+    }
+
+    if (subcommand) {
+      writeLine(COMMAND_ERROR_MESSAGE);
+      return { exitCode: 1 };
+    }
+
     const initCommand = deps.initCommand ?? createInitCommand({
       prompts,
       executor,

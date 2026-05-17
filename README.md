@@ -2,22 +2,7 @@
 
 `lm-tool` 是一个用于 `lumu99` 项目的 DevOps 命令行工具。
 
-当前支持的命令：
 
-- `lm init`
-- `lm build help`
-- `lm build server`
-- `lm build web`
-- `lm build admin`
-- `lm build`
-- `lm check help`
-- `lm check server`
-- `lm check web`
-- `lm check admin`
-- `lm check`
-- `lm help`
-
-所有 `lm` 命令在正式执行前，都会先检查 `lm-tool` 自身仓库是否有更新。
 
 ## 使用前提
 
@@ -25,18 +10,16 @@
 
 - `Node.js`
 - `npm`
+- `JDK 17`
+- `Maven 3.9+`
+- `MySQL 8`
+- `Redis 6+`
 
 然后把本仓库拉到本地。
 
 ## 直接使用 `lm` 命令
 
-如果你希望直接输入：
-
-```bash
-lm build
-```
-
-需要先在 `lm-tool` 项目目录执行一次：
+初次使用需要先在 `lm-tool` 项目目录执行一次：
 
 ```bash
 npm run setup:global
@@ -52,6 +35,7 @@ npm run setup:global
 ```bash
 lm help
 lm init
+lm init help
 lm build
 lm build help
 lm build server
@@ -65,25 +49,9 @@ lm check server
 说明：
 
 - `lm`、`lm help`、`lm init`、`lm build...`、`lm check...` 在执行前都会先检查 `lm-tool` 是否需要更新
+- `lm init help` 只显示初始化帮助，不会执行初始化
+- `lm init` 会先检查本机 `JDK 17`、`Maven 3.9+`、`MySQL 8`、`Redis 6+`
 - 只有 `build` 命令会拉取 `server` / `web` / `admin` 仓库最新代码
-
-## 新机器安装步骤
-
-在新的机器上，推荐按下面步骤使用：
-
-```bash
-git clone <lm-tool 仓库地址>
-cd lm-tool
-npm run setup:global
-lm init
-lm build
-```
-
-说明：
-
-- 这是“源码安装版”，不是独立可执行文件版
-- 新机器上同样需要先安装 `Node.js` 和 `npm`
-- `npm run setup:global` 只需要执行一次
 
 ## 直接从源码运行
 
@@ -92,6 +60,7 @@ lm build
 ```bash
 node src/index.js help
 node src/index.js init
+node src/index.js init help
 node src/index.js build server
 node src/index.js build
 ```
@@ -109,6 +78,15 @@ npm start -- help
 ```bash
 lm init
 ```
+
+执行 `lm init` 时，会先检查以下本机环境版本：
+
+- `JDK` 必须是 `17`
+- `Maven` 必须是 `3.9+`
+- `MySQL` 必须是 `8`
+- `Redis` 必须是 `6+`
+
+如果任意一项缺失、命令不可用或版本不满足，`lm init` 会先输出详细中文提示并终止，不会进入交互式初始化。
 
 初始化流程会：
 
@@ -207,6 +185,7 @@ lm init
 ## 帮助说明
 
 - `lm help`：显示顶层命令帮助
+- `lm init help`：显示 `init` 子命令帮助
 - `lm build help`：显示 `build` 子命令帮助
 - `lm check help`：显示 `check` 子命令帮助
 

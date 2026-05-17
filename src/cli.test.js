@@ -2,6 +2,26 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runCli } from './cli.js';
 
+test('lm init help prints init help text and does not run init command', async () => {
+  const lines = [];
+  const result = await runCli(['init', 'help'], {
+    writeLine: (line) => lines.push(line),
+    executor: { run: async () => ({ exitCode: 0 }) },
+    prompts: {},
+    configStore: {},
+    executableDir: process.cwd(),
+    selfUpdatePreflight: async () => ({ exitCode: 0, shouldReexec: false }),
+    initCommand: {
+      run: async () => {
+        throw new Error('init command should not run for lm init help');
+      },
+    },
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.match(lines.join('\n'), /lm init help/);
+});
+
 test('lm check help prints check help text', async () => {
   const lines = [];
   const result = await runCli(['check', 'help'], {

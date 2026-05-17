@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises';
 
 import { createCheckCommand } from './check.js';
 import { createInitPlan } from '../core/init-plan.js';
+import { createInitPrerequisiteCheck } from '../core/init-prerequisites.js';
 import { normalizeProjectPath, validateExistingRepoPath } from '../core/path.js';
 
 const PROJECTS = ['server', 'web', 'admin'];
@@ -17,10 +18,22 @@ export function createInitCommand(deps) {
     prompts,
     writeLine,
   });
+  const prerequisiteCheck = deps.prerequisiteCheck ?? createInitPrerequisiteCheck({
+    executor: deps.executor,
+    writeLine,
+    writeStdout,
+    writeStderr,
+    runtimePlatform: deps.runtimePlatform ?? process.platform,
+  });
 
   return {
     async run() {
       try {
+        const prerequisiteResult = await prerequisiteCheck.run();
+        if (prerequisiteResult.exitCode !== 0) {
+          return prerequisiteResult;
+        }
+
         const platform = await prompts.selectPlatform();
         const repoState = await prompts.selectRepoState();
         const existingRepos = repoState === 'all'

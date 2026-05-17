@@ -8,6 +8,10 @@ export function createExecutor({ spawnImpl = spawn } = {}) {
           input.writeLine?.(input.startMessage);
         }
 
+        const shouldCaptureOutput = Boolean(input.captureOutput);
+        let stdout = '';
+        let stderr = '';
+
         const child = spawnImpl(input.command, input.args ?? [], {
           cwd: input.cwd,
           shell: false,
@@ -16,11 +20,19 @@ export function createExecutor({ spawnImpl = spawn } = {}) {
         let settled = false;
 
         child.stdout?.on('data', (chunk) => {
-          input.onStdout?.(String(chunk));
+          const text = String(chunk);
+          if (shouldCaptureOutput) {
+            stdout += text;
+          }
+          input.onStdout?.(text);
         });
 
         child.stderr?.on('data', (chunk) => {
-          input.onStderr?.(String(chunk));
+          const text = String(chunk);
+          if (shouldCaptureOutput) {
+            stderr += text;
+          }
+          input.onStderr?.(text);
         });
 
         child.on('error', (error) => {
@@ -29,9 +41,18 @@ export function createExecutor({ spawnImpl = spawn } = {}) {
           }
 
           settled = true;
-          input.onStderr?.(`${error.message}\n`);
+          const message = `${error.message}\n`;
+          if (shouldCaptureOutput) {
+            stderr += message;
+          }
+          input.onStderr?.(message);
           writeCompletion(input, 1);
-          resolve({ exitCode: 1 });
+          resolve(buildResult({
+            exitCode: 1,
+            shouldCaptureOutput,
+            stdout,
+            stderr,
+          }));
         });
 
         child.on('close', (exitCode) => {
@@ -40,11 +61,29 @@ export function createExecutor({ spawnImpl = spawn } = {}) {
           }
 
           settled = true;
-          writeCompletion(input, exitCode ?? 1);
-          resolve({ exitCode: exitCode ?? 1 });
+          const normalizedExitCode = exitCode ?? 1;
+          writeCompletion(input, normalizedExitCode);
+          resolve(buildResult({
+            exitCode: normalizedExitCode,
+            shouldCaptureOutput,
+            stdout,
+            stderr,
+          }));
         });
       });
     },
+  };
+}
+
+function buildResult({ exitCode, shouldCaptureOutput, stdout, stderr }) {
+  if (!shouldCaptureOutput) {
+    return { exitCode };
+  }
+
+  return {
+    exitCode,
+    stdout,
+    stderr,
   };
 }
 

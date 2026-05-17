@@ -8,3 +8,10 @@ test('build help only includes build commands', () => {
   assert.match(commandSection, /lm build server/);
   assert.doesNotMatch(commandSection, /lm check server/);
 });
+
+test('init help only includes init commands', () => {
+  const text = buildHelpText('init');
+  const commandSection = text.split('\n\n使用规则：')[0];
+  assert.match(commandSection, /lm init help/);
+  assert.doesNotMatch(commandSection, /lm build server/);
+});
