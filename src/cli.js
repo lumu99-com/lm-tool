@@ -10,19 +10,22 @@ import { spawn } from 'node:child_process';
 
 export async function runCli(argv, deps) {
   const command = argv[0];
+  const subcommand = argv[1];
 
   const executableDir = deps.executableDir ?? path.dirname(process.argv[1] ?? process.cwd());
   const configStore = deps.configStore ?? createConfigStore({ executableDir });
   const executor = deps.executor ?? createExecutor();
   const prompts = deps.prompts ?? createPromptUi();
+  const writeLine = deps.writeLine ?? ((line) => console.log(line));
   const writeStdout = deps.writeStdout ?? ((chunk) => process.stdout.write(chunk));
   const writeStderr = deps.writeStderr ?? ((chunk) => process.stderr.write(chunk));
+  const selfUpdatePreflight = deps.selfUpdatePreflight ?? runSelfUpdatePreflight;
 
-  const selfUpdateResult = await runSelfUpdatePreflight({
+  const selfUpdateResult = await selfUpdatePreflight({
     executableDir,
     executor,
     prompts,
-    writeLine: deps.writeLine,
+    writeLine,
     writeStdout,
     writeStderr,
   });
@@ -36,12 +39,12 @@ export async function runCli(argv, deps) {
   }
 
   if (!command) {
-    deps.writeLine('命令错误，请使用 lm help 查看帮助');
+    writeLine('命令错误，请使用 lm help 查看帮助');
     return { exitCode: 1 };
   }
 
   if (command === 'help') {
-    deps.writeLine(buildHelpText());
+    writeLine(buildHelpText('root'));
     return { exitCode: 0 };
   }
 
@@ -50,7 +53,7 @@ export async function runCli(argv, deps) {
       prompts,
       executor,
       configStore,
-      writeLine: deps.writeLine,
+      writeLine,
       writeStdout,
       writeStderr,
     });
@@ -58,24 +61,64 @@ export async function runCli(argv, deps) {
   }
 
   if (command === 'build') {
-    const target = argv[1] ?? 'all';
+    const target = subcommand ?? 'all';
+    if (target === 'help') {
+      writeLine(buildHelpText('build'));
+      return { exitCode: 0 };
+    }
+
     if (!['all', 'server', 'web', 'admin'].includes(target)) {
-      deps.writeLine('命令错误，请使用 lm help 查看帮助');
+      writeLine('命令错误，请使用 lm help 查看帮助');
       return { exitCode: 1 };
     }
 
     const buildCommand = deps.buildCommand ?? createBuildCommand({
       executor,
       configStore,
-      writeLine: deps.writeLine,
+      writeLine,
       writeStdout,
       writeStderr,
     });
     return buildCommand.run(target);
   }
 
-  deps.writeLine('命令错误，请使用 lm help 查看帮助');
+  if (command === 'check') {
+    const target = subcommand ?? 'all';
+    if (target === 'help') {
+      writeLine(buildHelpText('check'));
+      return { exitCode: 0 };
+    }
+
+    if (target === 'all') {
+      return runCheckAll(writeLine);
+    }
+
+    if (['server', 'web', 'admin'].includes(target)) {
+      return runCheckTarget(target, writeLine);
+    }
+
+    writeLine('命令错误，请使用 lm help 查看帮助');
+    return { exitCode: 1 };
+  }
+
+  writeLine('命令错误，请使用 lm help 查看帮助');
   return { exitCode: 1 };
+}
+
+async function runCheckAll(writeLine) {
+  for (const target of ['server', 'web', 'admin']) {
+    const result = await runCheckTarget(target, writeLine);
+    if (result.exitCode !== 0) {
+      return result;
+    }
+  }
+
+  return { exitCode: 0 };
+}
+
+async function runCheckTarget(target, writeLine) {
+  writeLine(`${target} 暂无检查项`);
+  return { exitCode: 0 };
 }
 
 async function rerunCurrentProcess() {
