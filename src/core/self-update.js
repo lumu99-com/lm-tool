@@ -5,13 +5,34 @@ export async function runSelfUpdatePreflight(deps) {
     return { exitCode: 0, shouldReexec: false };
   }
 
-  const toolDir = await resolveToolDir(deps.executableDir);
-  if (!toolDir) {
+  const mode = deps.mode ?? 'auto';
+  const today = deps.today ?? buildTodayString();
+  const autoConfigState = await loadAutoConfigState({
+    mode,
+    configStore: deps.configStore,
+    today,
+  });
+
+  if (mode === 'auto' && !autoConfigState) {
     return { exitCode: 0, shouldReexec: false };
   }
 
-  const upstreamBranch = await resolveUpstreamBranch(toolDir);
+  const resolveToolDirImpl = deps.resolveToolDir ?? resolveToolDir;
+  const resolveUpstreamBranchImpl = deps.resolveUpstreamBranch ?? resolveUpstreamBranch;
+  const readAheadBehindImpl = deps.readAheadBehind ?? readAheadBehind;
+  const readHasLocalChangesImpl = deps.readHasLocalChanges ?? readHasLocalChanges;
+
+  const toolDir = await resolveToolDirImpl(deps.executableDir);
+  if (!toolDir) {
+    writeSelfUpdateInfo(deps.writeLine, '当前 lm-tool 不在 Git 仓库中，已跳过更新检查');
+    await saveAutoCheckDate(autoConfigState, today);
+    return { exitCode: 0, shouldReexec: false };
+  }
+
+  const upstreamBranch = await resolveUpstreamBranchImpl(toolDir);
   if (!upstreamBranch) {
+    writeSelfUpdateInfo(deps.writeLine, '当前 lm-tool 仓库未配置上游分支，已跳过更新检查');
+    await saveAutoCheckDate(autoConfigState, today);
     return { exitCode: 0, shouldReexec: false };
   }
 
@@ -31,15 +52,20 @@ export async function runSelfUpdatePreflight(deps) {
     return { exitCode: fetchResult.exitCode, shouldReexec: false };
   }
 
-  const aheadBehind = await readAheadBehind(toolDir, upstreamBranch);
+  const aheadBehind = await readAheadBehindImpl(toolDir, upstreamBranch);
   if (!aheadBehind || aheadBehind.remoteAhead <= 0) {
+    await saveAutoCheckDate(autoConfigState, today);
+    if (mode === 'manual' && aheadBehind && aheadBehind.remoteAhead <= 0) {
+      writeSelfUpdateInfo(deps.writeLine, 'lm-tool 当前已经是最新代码，无需更新');
+    }
     return { exitCode: 0, shouldReexec: false };
   }
 
-  const hasLocalChanges = await readHasLocalChanges(toolDir);
+  const hasLocalChanges = await readHasLocalChangesImpl(toolDir);
   if (hasLocalChanges) {
     const action = await deps.prompts.selectSelfUpdateAction();
     if (action === 'skip-update') {
+      await saveAutoCheckDate(autoConfigState, today);
       return { exitCode: 0, shouldReexec: false };
     }
 
@@ -76,7 +102,64 @@ export async function runSelfUpdatePreflight(deps) {
     return { exitCode: pullResult.exitCode, shouldReexec: false };
   }
 
+  await saveAutoCheckDate(autoConfigState, today);
+
+  if (mode === 'manual') {
+    writeSelfUpdateInfo(deps.writeLine, 'lm-tool 已更新完成，请重新执行需要的命令');
+    return { exitCode: 0, shouldReexec: false };
+  }
+
+  writeSelfUpdateInfo(deps.writeLine, '检测到 lm-tool 有更新，已拉取最新代码，正在重新执行当前命令');
   return { exitCode: 0, shouldReexec: true };
+}
+
+async function loadAutoConfigState({ mode, configStore, today }) {
+  if (mode !== 'auto' || !configStore?.load || !configStore?.save) {
+    return null;
+  }
+
+  const config = await configStore.load();
+  if (!config) {
+    return null;
+  }
+
+  if (config.selfUpdate?.lastCheckedDate === today) {
+    return null;
+  }
+
+  return {
+    configStore,
+    config,
+  };
+}
+
+async function saveAutoCheckDate(autoConfigState, today) {
+  if (!autoConfigState) {
+    return;
+  }
+
+  const nextConfig = {
+    ...autoConfigState.config,
+    selfUpdate: {
+      ...autoConfigState.config.selfUpdate,
+      lastCheckedDate: today,
+    },
+  };
+
+  autoConfigState.config = nextConfig;
+  await autoConfigState.configStore.save(nextConfig);
+}
+
+function writeSelfUpdateInfo(writeLine, message) {
+  writeLine?.(`[INFO] ${message}`);
+  writeLine?.('=======================');
+}
+
+function buildTodayString(now = new Date()) {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 async function resolveToolDir(executableDir) {

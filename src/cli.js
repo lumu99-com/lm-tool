@@ -15,6 +15,7 @@ const COMMAND_ERROR_MESSAGE = '命令错误，请使用 lm help 查看帮助';
 export async function runCli(argv, deps) {
   const command = argv[0];
   const subcommand = argv[1];
+  const selfUpdateMode = command === 'update' ? 'manual' : 'auto';
 
   const executableDir = deps.executableDir ?? path.dirname(process.argv[1] ?? process.cwd());
   const configStore = deps.configStore ?? createConfigStore({ executableDir });
@@ -26,7 +27,9 @@ export async function runCli(argv, deps) {
   const selfUpdatePreflight = deps.selfUpdatePreflight ?? runSelfUpdatePreflight;
 
   const selfUpdateResult = await selfUpdatePreflight({
+    mode: selfUpdateMode,
     executableDir,
+    configStore,
     executor,
     prompts,
     writeLine,
@@ -45,6 +48,15 @@ export async function runCli(argv, deps) {
   if (!command) {
     writeLine(COMMAND_ERROR_MESSAGE);
     return { exitCode: 1 };
+  }
+
+  if (command === 'update') {
+    if (subcommand) {
+      writeLine(COMMAND_ERROR_MESSAGE);
+      return { exitCode: 1 };
+    }
+
+    return { exitCode: 0 };
   }
 
   if (command === 'help') {

@@ -57,3 +57,42 @@ test('lm check server routes to the check command', async () => {
   assert.equal(result.exitCode, 0);
   assert.deepEqual(targets, ['server']);
 });
+
+test('lm update routes to manual self update mode', async () => {
+  const modes = [];
+  const result = await runCli(['update'], {
+    writeLine: () => {},
+    executor: { run: async () => ({ exitCode: 0 }) },
+    prompts: {},
+    configStore: {},
+    executableDir: process.cwd(),
+    selfUpdatePreflight: async ({ mode }) => {
+      modes.push(mode);
+      return { exitCode: 0, shouldReexec: false };
+    },
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(modes, ['manual']);
+});
+
+test('automatic commands call self update in auto mode', async () => {
+  const modes = [];
+  const result = await runCli(['check', 'server'], {
+    writeLine: () => {},
+    executor: { run: async () => ({ exitCode: 0 }) },
+    prompts: {},
+    configStore: {},
+    executableDir: process.cwd(),
+    selfUpdatePreflight: async ({ mode }) => {
+      modes.push(mode);
+      return { exitCode: 0, shouldReexec: false };
+    },
+    checkCommand: {
+      run: async () => ({ exitCode: 0 }),
+    },
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(modes, ['auto']);
+});

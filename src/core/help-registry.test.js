@@ -2,6 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildHelpText } from './help-registry.js';
 
+test('root help includes lm update command', () => {
+  const text = buildHelpText('root');
+  const commandSection = text.split('\n\n使用规则：')[0];
+  assert.match(commandSection, /lm update/);
+});
+
 test('build help only includes build commands', () => {
   const text = buildHelpText('build');
   const commandSection = text.split('\n\n使用规则：')[0];

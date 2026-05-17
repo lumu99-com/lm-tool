@@ -50,14 +50,16 @@ lm build admin
 lm check
 lm check help
 lm check server
+lm update
 ```
 
 说明：
 
-- `lm`、`lm help`、`lm init`、`lm build...`、`lm check...` 在执行前都会先检查 `lm-tool` 是否需要更新
+- 在已经生成 `lm.config.json` 的前提下，`lm`、`lm help`、`lm init`、`lm build...`、`lm check...` 每天第一次执行时会先检查 `lm-tool` 是否需要更新
 - `lm init help` 只显示初始化帮助，不会执行初始化
 - `lm init` 会先检查本机 `JDK 17`、`Maven 3.9+`、`MySQL 8`、`Redis 6+`
 - 只有 `build` 命令会拉取 `server` / `web` / `admin` 仓库最新代码
+- `lm update` 会立即手动检查并更新 `lm-tool`
 
 ## 直接从源码运行
 
@@ -190,6 +192,15 @@ lm init
 
 显示 `check` 命令的子命令帮助。
 
+### `lm update`
+
+会立即检查当前 `lm-tool` 仓库是否有更新：
+
+- 如果已经是最新代码，则提示无需更新
+- 如果拉取到了新代码，则提示你重新执行需要的命令
+- `lm update` 自身不会自动重启
+- 即使当天已经执行过自动检查，`lm update` 仍然会再次检查
+
 ## 帮助说明
 
 - `lm help`：显示顶层命令帮助
@@ -200,11 +211,15 @@ lm init
 ## 自更新说明
 
 - `lm-tool` 自更新检查的是当前 `lm-tool` 本地仓库
+- 自动检查只会在已存在 `lm.config.json` 时启用，并把当天检查日期记录到 `selfUpdate.lastCheckedDate`
+- 如果当天已经检查过，后续 `lm`、`lm help`、`lm init`、`lm build...`、`lm check...` 不会重复检查
 - 如果检测到远端有新代码，且本地仓库干净，会自动拉取最新代码
+- 自动检查拉取到新代码后，会提示并重新执行当前命令
 - 如果检测到远端有新代码，但本地仓库有变更，会提示用户通过上下键选择：
   - `回退本地变更并更新`
   - `跳过更新，继续执行当前命令`
-- 如果选择更新，工具会先拉取 `lm-tool` 最新代码，再继续当前命令
+- 如果选择更新，自动检查会先拉取 `lm-tool` 最新代码，再继续当前命令
+- `lm update` 为手动更新入口，不受“当天已检查过”的限制
 
 ## 配置文件位置
 
