@@ -277,3 +277,70 @@ test('windows build all launches web and admin dev windows after server build', 
   assert.equal(calls[5].commandName, 'powershell.exe');
   assert.equal(calls[8].commandName, 'powershell.exe');
 });
+
+test('windows server restart steps use the configured fixed jar name for process matching', async (t) => {
+  const serverDir = await mkdtemp(path.join(os.tmpdir(), 'lm-tool-build-runtime-'));
+  t.after(() => rm(serverDir, { recursive: true, force: true }));
+
+  await writeFile(path.join(serverDir, '.env.example'), 'SPRING_PROFILES_ACTIVE=prod\n');
+
+  const calls = [];
+  const fixedJarName = 'custom-server.jar';
+  const command = createBuildCommand({
+    configStore: {
+      load: async () => ({
+        platform: 'windows',
+        projects: {
+          server: serverDir,
+        },
+        server: {
+          fixedJarName,
+          logFile: 'logs/server.log',
+          linuxServiceName: 'lumu99-server',
+        },
+      }),
+    },
+    executor: {
+      run: async (input) => {
+        calls.push(input);
+        return { exitCode: 0 };
+      },
+    },
+    checkCommand: {
+      run: async () => ({ exitCode: 0 }),
+    },
+    locateVersionedServerJar: async () => ({
+      fullPath: path.join(serverDir, 'target', 'custom-server-1.1.8.jar'),
+    }),
+    copyServerJarToFixedName: async () => {},
+    createServerRestartPlan: (step) => ({
+      steps: [
+        {
+          kind: 'stop-server-process',
+          label: 'stop existing server process',
+          infoLabel: 'stop server',
+          startMessage: 'stop server',
+          jarPath: step.jarPath,
+        },
+        {
+          kind: 'verify-server-process',
+          label: 'verify server process',
+          infoLabel: 'verify server',
+          startMessage: 'verify server',
+          jarPath: step.jarPath,
+        },
+      ],
+    }),
+    writeLine: () => {},
+  });
+
+  const result = await command.run('server');
+  const stopCall = calls.find((call) => call.label === 'stop existing server process');
+  const verifyCall = calls.find((call) => call.label === 'verify server process');
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(stopCall.command, 'powershell.exe');
+  assert.match(stopCall.args.join(' '), /custom-server\.jar/);
+  assert.equal(verifyCall.command, 'powershell.exe');
+  assert.match(verifyCall.args.join(' '), /custom-server\.jar/);
+});

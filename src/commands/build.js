@@ -10,7 +10,11 @@ import {
   syncAddedExampleLines,
 } from '../core/env-file.js';
 import { locateVersionedServerJar, copyServerJarToFixedName } from '../core/jar.js';
-import { createServerRestartPlan, matchesServerJarCommandLine } from '../core/server-runtime.js';
+import {
+  createServerRestartPlan,
+  matchesServerJarCommandLine,
+  resolveServerJarFileName,
+} from '../core/server-runtime.js';
 
 export function createBuildCommand(deps) {
   const executor = deps.executor;
@@ -240,6 +244,7 @@ async function runRuntimeStepDefault(step, context) {
   }
 
   if (step.kind === 'stop-server-process') {
+    const jarFileName = resolveServerJarFileName(step.jarPath);
     if (process.platform === 'win32') {
       return context.executor.run({
         label: step.label,
@@ -248,7 +253,7 @@ async function runRuntimeStepDefault(step, context) {
         command: 'powershell.exe',
         args: [
           '-Command',
-          "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*lumu99-server.jar*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
+          `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${escapePowerShellSingleQuotedString(jarFileName)}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`,
         ],
         cwd: process.cwd(),
         writeLine: context.writeLine,
@@ -262,7 +267,7 @@ async function runRuntimeStepDefault(step, context) {
       infoLabel: step.infoLabel,
       startMessage: step.startMessage,
       command: 'sh',
-      args: ['-lc', "pkill -f 'lumu99-server.jar' || true"],
+      args: ['-lc', `pkill -f ${quotePosix(jarFileName)} || true`],
       cwd: process.cwd(),
       writeLine: context.writeLine,
       onStdout: context.writeStdout,
@@ -307,6 +312,7 @@ async function runRuntimeStepDefault(step, context) {
   }
 
   if (step.kind === 'verify-server-process') {
+    const jarFileName = resolveServerJarFileName(step.jarPath);
     if (process.platform === 'win32') {
       const result = await context.executor.run({
         label: step.label,
@@ -315,7 +321,7 @@ async function runRuntimeStepDefault(step, context) {
         command: 'powershell.exe',
         args: [
           '-Command',
-          "if (Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*lumu99-server.jar*' }) { exit 0 } else { exit 1 }",
+          `if (Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${escapePowerShellSingleQuotedString(jarFileName)}*' }) { exit 0 } else { exit 1 }`,
         ],
         cwd: process.cwd(),
         writeLine: context.writeLine,
@@ -330,7 +336,7 @@ async function runRuntimeStepDefault(step, context) {
       infoLabel: step.infoLabel,
       startMessage: step.startMessage,
       command: 'sh',
-      args: ['-lc', "pgrep -f 'lumu99-server.jar' >/dev/null"],
+      args: ['-lc', `pgrep -f ${quotePosix(jarFileName)} >/dev/null`],
       cwd: process.cwd(),
       writeLine: context.writeLine,
       onStdout: context.writeStdout,
@@ -338,5 +344,13 @@ async function runRuntimeStepDefault(step, context) {
     });
   }
 
-  return { exitCode: matchesServerJarCommandLine(step.jarPath ?? '') ? 0 : 1 };
+  return { exitCode: matchesServerJarCommandLine(step.jarPath ?? '', step.jarPath) ? 0 : 1 };
+}
+
+function escapePowerShellSingleQuotedString(value) {
+  return String(value).replaceAll("'", "''");
+}
+
+function quotePosix(value) {
+  return `'${String(value).replaceAll("'", "'\"'\"'")}'`;
 }

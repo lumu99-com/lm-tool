@@ -185,7 +185,34 @@ test('auto mode requests reexec after pulling new code and saves the date', asyn
     projects: { server: 'D:/server' },
     selfUpdate: { lastCheckedDate: '2026-05-17' },
   });
-  assert.match(lines.join('\n'), /正在重新执行当前命令/);
+  assert.match(lines.join('\n'), /重新执行当前命令/);
+});
+
+test('auto mode clears tracked and untracked local changes before pulling updates', async () => {
+  const configStore = createConfigStore({
+    platform: 'windows',
+    projects: { server: 'D:/server' },
+  });
+  const { deps, executorCalls, lines } = createDeps({
+    configStore,
+    readAheadBehind: async () => ({ localAhead: 0, remoteAhead: 1 }),
+    readHasLocalChanges: async () => true,
+    prompts: {
+      selectSelfUpdateAction: async () => 'restore-and-update',
+    },
+  });
+
+  const result = await runSelfUpdatePreflight(deps);
+
+  assert.deepEqual(result, { exitCode: 0, shouldReexec: true });
+  assert.deepEqual(executorCalls, [
+    'git fetch',
+    'git reset --hard HEAD',
+    'git clean -fd',
+    'git pull',
+  ]);
+  assert.equal(configStore.saves.length, 1);
+  assert.match(lines.join('\n'), /重新执行当前命令/);
 });
 
 test('manual mode updates without reexec and asks user to rerun the target command', async () => {

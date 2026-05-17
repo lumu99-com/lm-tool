@@ -69,18 +69,13 @@ export async function runSelfUpdatePreflight(deps) {
       return { exitCode: 0, shouldReexec: false };
     }
 
-    const restoreResult = await deps.executor.run({
-      label: 'git restore .',
-      infoLabel: '回退 lm-tool 本地变更',
-      startMessage: '正在回退 lm-tool 本地变更',
-      command: 'git',
-      args: ['restore', '.'],
-      cwd: toolDir,
+    const restoreResult = await resetLocalChanges({
+      executor: deps.executor,
+      toolDir,
       writeLine: deps.writeLine,
-      onStdout: deps.writeStdout,
-      onStderr: deps.writeStderr,
+      writeStdout: deps.writeStdout,
+      writeStderr: deps.writeStderr,
     });
-
     if (restoreResult.exitCode !== 0) {
       return { exitCode: restoreResult.exitCode, shouldReexec: false };
     }
@@ -148,6 +143,42 @@ async function saveAutoCheckDate(autoConfigState, today) {
 
   autoConfigState.config = nextConfig;
   await autoConfigState.configStore.save(nextConfig);
+}
+
+async function resetLocalChanges({
+  executor,
+  toolDir,
+  writeLine,
+  writeStdout,
+  writeStderr,
+}) {
+  const resetTrackedResult = await executor.run({
+    label: 'git reset --hard HEAD',
+    infoLabel: '回退 lm-tool 已跟踪的本地变更',
+    startMessage: '正在回退 lm-tool 已跟踪的本地变更',
+    command: 'git',
+    args: ['reset', '--hard', 'HEAD'],
+    cwd: toolDir,
+    writeLine,
+    onStdout: writeStdout,
+    onStderr: writeStderr,
+  });
+
+  if (resetTrackedResult.exitCode !== 0) {
+    return resetTrackedResult;
+  }
+
+  return executor.run({
+    label: 'git clean -fd',
+    infoLabel: '清理 lm-tool 未跟踪的本地文件',
+    startMessage: '正在清理 lm-tool 未跟踪的本地文件',
+    command: 'git',
+    args: ['clean', '-fd'],
+    cwd: toolDir,
+    writeLine,
+    onStdout: writeStdout,
+    onStderr: writeStderr,
+  });
 }
 
 function writeSelfUpdateInfo(writeLine, message) {

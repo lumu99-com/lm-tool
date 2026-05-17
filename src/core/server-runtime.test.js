@@ -43,3 +43,20 @@ test('server jar matcher only matches fixed jar name', () => {
   assert.equal(matchesServerJarCommandLine('java -jar /opt/app/target/lumu99-server.jar'), true);
   assert.equal(matchesServerJarCommandLine('java -jar /opt/app/target/lumu99-server-1.1.9.jar'), false);
 });
+
+test('server jar matcher supports custom configured fixed jar name', () => {
+  assert.equal(
+    matchesServerJarCommandLine(
+      'java -jar /opt/app/target/custom-server.jar',
+      '/opt/app/target/custom-server.jar',
+    ),
+    true,
+  );
+  assert.equal(
+    matchesServerJarCommandLine(
+      'java -jar /opt/app/target/lumu99-server.jar',
+      '/opt/app/target/custom-server.jar',
+    ),
+    false,
+  );
+});

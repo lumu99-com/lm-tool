@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 
-export function createExecutor({ spawnImpl = spawn } = {}) {
+const WINDOWS_CMD_WRAPPERS = new Set(['npm', 'npx', 'pnpm', 'yarn', 'mvn']);
+
+export function createExecutor({ spawnImpl = spawn, runtimePlatform = process.platform } = {}) {
   return {
     async run(input) {
       return new Promise((resolve) => {
@@ -11,8 +13,9 @@ export function createExecutor({ spawnImpl = spawn } = {}) {
         const shouldCaptureOutput = Boolean(input.captureOutput);
         let stdout = '';
         let stderr = '';
+        const command = resolveCommandForPlatform(input.command, runtimePlatform);
 
-        const child = spawnImpl(input.command, input.args ?? [], {
+        const child = spawnImpl(command, input.args ?? [], {
           cwd: input.cwd,
           shell: false,
         });
@@ -77,6 +80,22 @@ export function createExecutor({ spawnImpl = spawn } = {}) {
       });
     },
   };
+}
+
+function resolveCommandForPlatform(command, runtimePlatform) {
+  if (runtimePlatform !== 'win32' || typeof command !== 'string') {
+    return command;
+  }
+
+  if (/[\\/]/.test(command) || /\.[^./\\]+$/.test(command)) {
+    return command;
+  }
+
+  if (WINDOWS_CMD_WRAPPERS.has(command.toLowerCase())) {
+    return `${command}.cmd`;
+  }
+
+  return command;
 }
 
 function buildResult({ exitCode, shouldCaptureOutput, stdout, stderr }) {

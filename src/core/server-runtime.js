@@ -1,5 +1,7 @@
 import path from 'node:path';
 
+const DEFAULT_FIXED_JAR_NAME = 'lumu99-server.jar';
+
 export function createServerRestartPlan(input) {
   if (input.platform === 'linux') {
     const useSudoForServiceCommands = input.linuxUseSudoForServiceCommands ?? true;
@@ -55,6 +57,11 @@ export function createServerRestartPlan(input) {
   };
 }
 
-export function matchesServerJarCommandLine(commandLine) {
-  return commandLine.includes('lumu99-server.jar');
+export function resolveServerJarFileName(jarPath) {
+  const jarFileName = typeof jarPath === 'string' ? path.basename(jarPath) : '';
+  return jarFileName || DEFAULT_FIXED_JAR_NAME;
+}
+
+export function matchesServerJarCommandLine(commandLine, jarPath) {
+  return String(commandLine).includes(resolveServerJarFileName(jarPath));
 }
