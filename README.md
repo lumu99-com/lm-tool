@@ -15,6 +15,12 @@
 - `MySQL 8`
 - `Redis 6+`
 
+Linux 额外要求：
+
+- `lm build server` 在重启 Linux 服务时会执行 `sudo systemctl restart <service>`
+- 机器需要为对应服务管理命令配置免密 `sudo`
+- `git`、`npm`、`mvn` 仍然使用普通用户执行，不会统一提升为 `root`
+
 然后把本仓库拉到本地。
 
 ## 直接使用 `lm` 命令
@@ -120,6 +126,8 @@ lm init
 - 不会覆盖 `.env` 中已存在的值
 - 不会删除 `.env` 中已有内容
 - 只处理配置文件中 `server` 项目路径下的 `.env` 和 `.env.example`
+- Linux 下重启服务时只对服务管理命令使用 `sudo`
+- Linux 机器需要为 `sudo systemctl restart <linuxServiceName>` 配置免密执行
 
 ### `lm build web`
 
@@ -205,6 +213,12 @@ lm init
 ```bash
 lm.config.json
 ```
+
+其中 `server.linuxUseSudoForServiceCommands` 用于控制 Linux 服务管理命令是否包一层 `sudo`：
+
+- Linux 新配置默认写入 `true`
+- 旧 Linux 配置即使缺少这个字段，运行时也会默认按 `true` 处理
+- Windows 和 macOS 不使用这个字段
 
 配置文件会写在当前 CLI 入口文件旁边。
 

@@ -2,6 +2,8 @@ import path from 'node:path';
 
 export function createServerRestartPlan(input) {
   if (input.platform === 'linux') {
+    const useSudoForServiceCommands = input.linuxUseSudoForServiceCommands ?? true;
+
     return {
       steps: [
         {
@@ -9,8 +11,10 @@ export function createServerRestartPlan(input) {
           label: 'systemctl restart',
           infoLabel: '重启 server 服务',
           startMessage: '正在重启 server 服务',
-          command: 'systemctl',
-          args: ['restart', input.linuxServiceName],
+          command: useSudoForServiceCommands ? 'sudo' : 'systemctl',
+          args: useSudoForServiceCommands
+            ? ['systemctl', 'restart', input.linuxServiceName]
+            : ['restart', input.linuxServiceName],
           cwd: input.serverDir,
         },
       ],

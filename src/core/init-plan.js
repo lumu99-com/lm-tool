@@ -42,6 +42,7 @@ export function createInitPlan(input) {
       fixedJarName: 'lumu99-server.jar',
       linuxServiceName: 'lumu99-server',
       logFile: 'logs/lm-tool-server.log',
+      linuxUseSudoForServiceCommands: true,
     },
   };
 

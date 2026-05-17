@@ -8,6 +8,7 @@
 - 所有提示文案统一使用详细中文，明确说明动作和对象
 - 每个外部命令结束后都要输出 `[INFO] ...`，然后输出 `=======================`
 - 新规则必须能够根据配置文件适配不同系统，不能写死平台行为
+- Linux 下只有需要提权的服务管理命令使用 `sudo`，不能把 `git`、`npm`、`mvn` 这类仓库和构建命令统一加 `sudo`
 - `check server` 和 `build server` 处理的 `.env`、`.env.example` 必须基于配置里的 `projects.server` 路径，不能写死成字面量 `server/.env`
 - `lm build server` 在 `git pull` 后，要先把 `.env.example` 中纯新增的 key / 注释增量补进 `.env`，再执行 `lm check server`
 - 创建新的命令规则时，要把介绍写入父级 help，例如 `lm mysql init` 也要同步写入 `lm mysql help`

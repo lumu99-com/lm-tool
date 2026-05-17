@@ -104,6 +104,7 @@ export function createBuildPlan({ target, config }) {
         jarPath: fixedJarPath,
         logPath,
         linuxServiceName: config.server.linuxServiceName,
+        linuxUseSudoForServiceCommands: config.server.linuxUseSudoForServiceCommands,
       },
     ],
   };
