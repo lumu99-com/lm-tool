@@ -168,3 +168,24 @@ test('syncAddedExampleLines keeps pure-added comment and key from a mixed diff b
     'B=7',
   ]);
 });
+
+test('syncAddedExampleLines does not insert a modified old comment', () => {
+  const result = syncAddedExampleLines({
+    beforeExampleLines: [
+      '# Base',
+      'A=1',
+    ],
+    afterExampleLines: [
+      '# Base Config',
+      'A=1',
+    ],
+    envLines: [
+      'A=9',
+    ],
+  });
+
+  assert.equal(result.changed, false);
+  assert.deepEqual(result.lines, [
+    'A=9',
+  ]);
+});

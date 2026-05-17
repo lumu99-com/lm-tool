@@ -190,6 +190,9 @@ function buildLcsMatrix(beforeLines, afterLines) {
 
 function collectInsertableLines({ candidateLines, removedLines, envLines }) {
   const parsedEnvLines = parseEnvLines(envLines);
+  let removedCommentSlots = parseEnvLines(removedLines)
+    .filter((line) => line.kind === 'comment')
+    .length;
   const removedKeys = new Set(
     parseEnvLines(removedLines)
       .filter((line) => line.kind === 'key')
@@ -221,6 +224,11 @@ function collectInsertableLines({ candidateLines, removedLines, envLines }) {
     }
 
     if (parsedLine.kind === 'comment') {
+      if (removedCommentSlots > 0) {
+        removedCommentSlots -= 1;
+        continue;
+      }
+
       if (existingComments.has(parsedLine.raw)) {
         continue;
       }
