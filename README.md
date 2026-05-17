@@ -1,8 +1,8 @@
-# lm-tool
+﻿# lm-tool
 
-`lm-tool` is a DevOps CLI for the lumu99 projects.
+`lm-tool` 是一个用于 `lumu99` 项目的 DevOps 命令行工具。
 
-Current commands:
+当前支持的命令：
 
 - `lm init`
 - `lm build server`
@@ -11,28 +11,66 @@ Current commands:
 - `lm build`
 - `lm help`
 
-## Direct `lm` command
+## 使用前提
 
-If you want to type `lm build` directly, run this once:
+当前版本是源码安装方式，使用前需要先安装：
+
+- `Node.js`
+- `npm`
+
+然后把本仓库拉到本地。
+
+## 直接使用 `lm` 命令
+
+如果你希望直接输入：
+
+```bash
+lm build
+```
+
+需要先在 `lm-tool` 项目目录执行一次：
 
 ```bash
 npm run setup:global
 ```
 
-On Windows, this does two things:
+这个命令的作用是：
 
-- runs `npm link`
-- disables npm's generated `lm.ps1` shim so PowerShell falls back to `lm.cmd`
+- 执行 `npm link`，把当前项目注册成全局命令 `lm`
+- 在 Windows 下额外处理 npm 生成的 `lm.ps1`，避免 PowerShell 因执行策略拦截，自动改为走 `lm.cmd`
 
-After that you can run:
+执行完成后，就可以直接使用：
 
 ```bash
 lm help
 lm init
 lm build
+lm build server
+lm build web
+lm build admin
 ```
 
-## Run from source
+## 新机器安装步骤
+
+在新的机器上，推荐按下面步骤使用：
+
+```bash
+git clone <lm-tool 仓库地址>
+cd lm-tool
+npm run setup:global
+lm init
+lm build
+```
+
+说明：
+
+- 这是“源码安装版”，不是独立可执行文件版
+- 新机器上同样需要先安装 `Node.js` 和 `npm`
+- `npm run setup:global` 只需要执行一次
+
+## 直接从源码运行
+
+如果你暂时不想安装全局 `lm` 命令，也可以直接运行源码：
 
 ```bash
 node src/index.js help
@@ -41,60 +79,96 @@ node src/index.js build server
 node src/index.js build
 ```
 
-You can also use:
+也可以使用：
 
 ```bash
 npm start -- help
 ```
 
-## Initialization
+## 初始化说明
 
-Run `lm init` first.
+首次使用先执行：
 
-The init flow will:
+```bash
+lm init
+```
 
-- let you choose the current platform with arrow keys
-- let you choose whether all, some, or none of the repositories already exist
-- ask for local repository paths for existing repositories
-- ask for a parent directory and clone missing repositories
-- save `lm.config.json`
+初始化流程会：
 
-If repository clone permissions are missing, the tool prints:
+- 通过上下键选择当前平台：`Windows` / `macOS` / `Linux`
+- 通过上下键选择仓库状态：`已拉取三个仓库` / `拉取了部分仓库` / `未拉取仓库`
+- 如果仓库已存在，输入本机仓库路径
+- 如果仓库缺失，输入项目父目录，工具会自动创建目录并执行 `git clone`
+- 最终生成配置文件 `lm.config.json`
+
+如果仓库拉取权限不足，工具会提示：
 
 `仓库拉取失败，如无权限请联系 @幻仔`
 
-## Build behavior
+## 构建说明
 
-`lm build server`:
+### `lm build server`
+
+会依次执行：
 
 - `git pull`
 - `mvn clean package -DskipTests`
-- locate the versioned server jar in `target`
-- copy it to `target/lumu99-server.jar`
-- restart the server
+- 在 `target` 目录中查找版本号 jar，例如 `lumu99-server-1.1.8.jar`
+- 复制为固定文件名 `target/lumu99-server.jar`
+- 重启服务
 
-`lm build web` and `lm build admin`:
+### `lm build web`
+
+会依次执行：
 
 - `git pull`
 - `npm install`
 - `npm run build`
 
-`lm build` runs:
+### `lm build admin`
+
+会依次执行：
+
+- `git pull`
+- `npm install`
+- `npm run build`
+
+### `lm build`
+
+会按下面顺序依次执行：
 
 1. `server`
 2. `web`
 3. `admin`
 
-The tool streams the original command output to the terminal and stops on the first failure.
+特性说明：
 
-## Config file location
+- 工具会把原始命令输出实时打印到终端
+- 任何一步失败后会立即停止
 
-`lm.config.json` is stored beside the invoked CLI entry.
+## 配置文件位置
 
-When you run from source with `node src/index.js`, that means it is written beside `src/index.js`.
+配置文件名为：
 
-## Packaging status
+```bash
+lm.config.json
+```
 
-The current repository is wired for source execution.
+配置文件会写在当前 CLI 入口文件旁边。
 
-Standalone executable packaging for Windows, macOS, and Linux still needs a verified packager workflow in this environment.
+如果你是通过源码方式运行：
+
+```bash
+node src/index.js
+```
+
+那么配置文件会写在 `src/index.js` 所在目录旁边。
+
+## 当前交付形态
+
+当前仓库已经支持：
+
+- 直接源码运行
+- 通过 `npm run setup:global` 安装成全局 `lm` 命令
+
+当前仓库还没有完成验证通过的三平台独立可执行文件打包流程。
