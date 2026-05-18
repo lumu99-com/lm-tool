@@ -9,7 +9,7 @@ export const helpRegistry = {
     { usage: 'lm help', description: '显示顶层帮助信息' },
   ],
   init: [
-    { usage: 'lm init', description: '先检查本机 JDK 17、Maven 3.9+、MySQL 8、Redis 6+，再进入初始化流程' },
+    { usage: 'lm init', description: '先检查本机 JDK 17、Maven 3.6.3 or later、MySQL 8、Redis 6+，再进入初始化流程' },
     { usage: 'lm init help', description: '显示 init 子命令帮助信息' },
   ],
   build: [
@@ -49,7 +49,7 @@ export function buildHelpText(scope = 'root') {
     '使用规则：',
     '- 已执行过 lm init 的环境下，lm、lm help、lm init、lm build、lm check、lm mysql 每天第一次执行时会先检查 lm-tool 是否有更新',
     '- lm init 只有在输入完整命令 lm init 时才会执行初始化，lm init help 只显示帮助',
-    '- lm init 在进入交互前会检查本机 JDK 17、Maven 3.9+、MySQL 8、Redis 6+',
+    '- lm init 在进入交互前会检查本机 JDK 17、Maven 3.6.3 or later、MySQL 8、Redis 6+',
     '- build 命令才会拉取 server、web、admin 仓库最新代码',
     '- lm build web 和 lm build admin 在 Linux 上执行 npm run build，在 Windows/macOS 上会新开终端窗口执行 npm run dev',
     '- lm update 会立刻手动检查并更新 lm-tool，自身更新后需要重新执行目标命令',

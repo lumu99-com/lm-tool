@@ -11,7 +11,7 @@
 - `Node.js`
 - `npm`
 - `JDK 17`
-- `Maven 3.9+`
+- `Maven 3.6.3 or later`
 - `MySQL 8`
 - `Redis 6+`
 
@@ -61,7 +61,7 @@ lm update
 
 - 在已经生成 `lm.config.json` 的前提下，`lm`、`lm help`、`lm init`、`lm build...`、`lm check...`、`lm mysql...` 每天第一次执行时会先检查 `lm-tool` 是否需要更新
 - `lm init help` 只显示初始化帮助，不会执行初始化
-- `lm init` 会先检查本机 `JDK 17`、`Maven 3.9+`、`MySQL 8`、`Redis 6+`
+- `lm init` 会先检查本机 `JDK 17`、`Maven 3.6.3 or later`、`MySQL 8`、`Redis 6+`
 - 只有 `build` 命令会拉取 `server` / `web` / `admin` 仓库最新代码
 - `lm build web` 和 `lm build admin` 在 Linux 上执行 `npm run build`，在 Windows / macOS 上会新开终端窗口执行 `npm run dev`
 - `lm mysql` 用于查看本地 MySQL 配置，`lm mysql init` 和 `lm mysql user` 用于初始化本地数据库与创建本地用户
@@ -96,7 +96,7 @@ lm init
 执行 `lm init` 时，会先检查以下本机环境版本：
 
 - `JDK` 必须是 `17`
-- `Maven` 必须是 `3.9+`
+- `Maven` 必须是 `3.6.3 or later`
 - `MySQL` 必须是 `8`
 - `Redis` 必须是 `6+`
 

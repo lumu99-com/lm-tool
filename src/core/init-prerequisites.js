@@ -116,12 +116,12 @@ function createPrerequisites(platform) {
     },
     {
       label: 'Maven',
-      requirementText: 'Maven 3.9+',
+      requirementText: 'Maven 3.6.3 or later',
       parseVersion: parseMavenVersion,
-      isSatisfied: (version) => compareVersions(version, '3.9.0') >= 0,
+      isSatisfied: (version) => compareVersions(version, '3.6.3') >= 0,
       probes: getPlatformProbes(platform, {
         infoLabel: '检查本机 Maven 版本',
-        startMessage: '正在检查本机 Maven 版本，要求为 3.9 及以上',
+        startMessage: '正在检查本机 Maven 版本，要求为 3.6.3 或更高版本',
         commands: [
           { command: 'mvn', args: ['-version'] },
         ],

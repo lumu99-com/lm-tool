@@ -22,7 +22,7 @@ test('init prerequisite check succeeds when required versions are installed', as
         if (key === 'mvn -version') {
           return {
             exitCode: 0,
-            stdout: 'Apache Maven 3.9.9\nMaven home: C:\\apache-maven\n',
+            stdout: 'Apache Maven 3.6.3\nMaven home: C:\\apache-maven\n',
           };
         }
 
@@ -107,7 +107,7 @@ test('init prerequisite check falls back to mysqld version output when mysql com
         if (key === 'mvn -version') {
           return {
             exitCode: 0,
-            stdout: 'Apache Maven 3.9.6\n',
+            stdout: 'Apache Maven 3.6.8\n',
           };
         }
 
