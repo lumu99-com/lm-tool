@@ -143,6 +143,129 @@ test('build server sync does not overwrite existing env values', async (t) => {
   assert.doesNotMatch(envContent, /^SPRING_PROFILES_ACTIVE=dev\s*$/m);
 });
 
+test('build server prompts to update local env when example changes an existing key and user chooses update', async (t) => {
+  const serverDir = await mkdtemp(path.join(os.tmpdir(), 'lm-tool-build-'));
+  t.after(() => rm(serverDir, { recursive: true, force: true }));
+
+  const envPath = path.join(serverDir, '.env');
+  const examplePath = path.join(serverDir, '.env.example');
+
+  await writeFile(
+    examplePath,
+    [
+      '# Base',
+      'APP_MODE=prod',
+      '',
+    ].join('\n'),
+  );
+  await writeFile(
+    envPath,
+    [
+      '# Base',
+      'APP_MODE=prod',
+      '',
+    ].join('\n'),
+  );
+
+  const promptedChanges = [];
+  const command = createBuildCommand({
+    configStore: {
+      load: async () => createServerConfig(serverDir),
+    },
+    executor: {
+      run: async ({ label }) => {
+        if (label === 'git pull') {
+          await writeFile(
+            examplePath,
+            [
+              '# Base',
+              'APP_MODE=staging',
+              '',
+            ].join('\n'),
+          );
+        }
+
+        return { exitCode: 0 };
+      },
+    },
+    prompts: {
+      selectEnvExampleUpdateAction: async (change) => {
+        promptedChanges.push(change);
+        return 'update-local';
+      },
+    },
+    checkCommand: {
+      run: async () => ({ exitCode: 0 }),
+    },
+    locateVersionedServerJar: async () => ({ fullPath: path.join(serverDir, 'target', 'lumu99-server-1.1.8.jar') }),
+    copyServerJarToFixedName: async () => {},
+    createServerRestartPlan: () => ({ steps: [] }),
+    writeLine: () => {},
+  });
+
+  const result = await command.run('server');
+  const envContent = await readFile(envPath, 'utf8');
+
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(promptedChanges, [
+    {
+      key: 'APP_MODE',
+      beforeExampleValue: 'prod',
+      afterExampleValue: 'staging',
+      localEnvValue: 'prod',
+    },
+  ]);
+  assert.match(envContent, /^APP_MODE=staging\s*$/m);
+});
+
+test('build server keeps local env value when example changes an existing key and user chooses keep', async (t) => {
+  const serverDir = await mkdtemp(path.join(os.tmpdir(), 'lm-tool-build-'));
+  t.after(() => rm(serverDir, { recursive: true, force: true }));
+
+  const envPath = path.join(serverDir, '.env');
+  const examplePath = path.join(serverDir, '.env.example');
+
+  await writeFile(examplePath, 'APP_MODE=prod\n');
+  await writeFile(envPath, 'APP_MODE=local\n');
+
+  const promptedChanges = [];
+  const command = createBuildCommand({
+    configStore: {
+      load: async () => createServerConfig(serverDir),
+    },
+    executor: {
+      run: async ({ label }) => {
+        if (label === 'git pull') {
+          await writeFile(examplePath, 'APP_MODE=staging\n');
+        }
+
+        return { exitCode: 0 };
+      },
+    },
+    prompts: {
+      selectEnvExampleUpdateAction: async (change) => {
+        promptedChanges.push(change);
+        return 'keep-local';
+      },
+    },
+    checkCommand: {
+      run: async () => ({ exitCode: 0 }),
+    },
+    locateVersionedServerJar: async () => ({ fullPath: path.join(serverDir, 'target', 'lumu99-server-1.1.8.jar') }),
+    copyServerJarToFixedName: async () => {},
+    createServerRestartPlan: () => ({ steps: [] }),
+    writeLine: () => {},
+  });
+
+  const result = await command.run('server');
+  const envContent = await readFile(envPath, 'utf8');
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(promptedChanges.length, 1);
+  assert.match(envContent, /^APP_MODE=local\s*$/m);
+  assert.doesNotMatch(envContent, /^APP_MODE=staging\s*$/m);
+});
+
 test('build server stops before maven build when check server fails', async (t) => {
   const serverDir = await mkdtemp(path.join(os.tmpdir(), 'lm-tool-build-'));
   t.after(() => rm(serverDir, { recursive: true, force: true }));

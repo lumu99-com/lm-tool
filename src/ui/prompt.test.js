@@ -6,6 +6,7 @@ import { createPromptUi } from './prompt.js';
 test('prompt ui exposes env value input method', () => {
   const ui = createPromptUi();
   assert.equal(typeof ui.inputEnvValue, 'function');
+  assert.equal(typeof ui.selectEnvExampleUpdateAction, 'function');
 });
 
 test('prompt ui exposes mysql prompt methods', () => {

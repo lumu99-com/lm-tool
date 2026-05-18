@@ -5,7 +5,9 @@ import { spawn } from 'node:child_process';
 import { createCheckCommand } from './check.js';
 import { createBuildPlan } from '../core/build-plan.js';
 import {
+  applyEnvKeyUpdates,
   ensureServerEnvFile,
+  findModifiedExampleKeyUpdates,
   resolveServerEnvPaths,
   syncAddedExampleLines,
 } from '../core/env-file.js';
@@ -19,17 +21,20 @@ import {
 export function createBuildCommand(deps) {
   const executor = deps.executor;
   const configStore = deps.configStore;
+  const prompts = deps.prompts ?? {};
   const writeLine = deps.writeLine ?? (() => {});
   const writeStdout = deps.writeStdout ?? ((chunk) => process.stdout.write(chunk));
   const writeStderr = deps.writeStderr ?? ((chunk) => process.stderr.write(chunk));
   const readFileImpl = deps.readFileImpl ?? readFile;
   const writeFileImpl = deps.writeFileImpl ?? writeFile;
   const ensureEnvFile = deps.ensureServerEnvFile ?? ensureServerEnvFile;
+  const findModifiedExampleUpdates = deps.findModifiedExampleKeyUpdates ?? findModifiedExampleKeyUpdates;
   const resolveEnvPaths = deps.resolveServerEnvPaths ?? resolveServerEnvPaths;
   const syncExampleLines = deps.syncAddedExampleLines ?? syncAddedExampleLines;
+  const applyKeyUpdates = deps.applyEnvKeyUpdates ?? applyEnvKeyUpdates;
   const checkCommand = deps.checkCommand ?? createCheckCommand({
     configStore,
-    prompts: deps.prompts ?? {},
+    prompts,
     writeLine,
   });
 
@@ -163,13 +168,73 @@ export function createBuildCommand(deps) {
     });
 
     if (!syncResult.changed) {
+      await promptModifiedExampleUpdates({
+        beforeExampleContent,
+        afterExampleContent,
+        envContent,
+        envPath: paths.envPath,
+      });
       return;
     }
 
+    const syncedEnvContent = stringifyEnvLines({
+      lines: syncResult.lines,
+      originalContent: envContent,
+      fallbackContent: afterExampleContent,
+    });
+
+    await writeFileImpl(paths.envPath, syncedEnvContent);
+    await promptModifiedExampleUpdates({
+      beforeExampleContent,
+      afterExampleContent,
+      envContent: syncedEnvContent,
+      envPath: paths.envPath,
+    });
+  }
+
+  async function promptModifiedExampleUpdates({
+    beforeExampleContent,
+    afterExampleContent,
+    envContent,
+    envPath,
+  }) {
+    const prompt = prompts.selectEnvExampleUpdateAction;
+    if (typeof prompt !== 'function') {
+      return;
+    }
+
+    const modifiedKeyUpdates = findModifiedExampleUpdates({
+      beforeExampleLines: beforeExampleContent,
+      afterExampleLines: afterExampleContent,
+      envLines: envContent,
+    });
+    if (modifiedKeyUpdates.length === 0) {
+      return;
+    }
+
+    const approvedUpdates = [];
+    for (const item of modifiedKeyUpdates) {
+      const action = await prompt(item);
+      if (action === 'update-local') {
+        approvedUpdates.push({
+          key: item.key,
+          value: item.afterExampleValue,
+        });
+      }
+    }
+
+    if (approvedUpdates.length === 0) {
+      return;
+    }
+
+    const nextLines = applyKeyUpdates({
+      envLines: envContent,
+      updates: approvedUpdates,
+    });
     await writeFileImpl(
-      paths.envPath,
+      envPath,
       stringifyEnvLines({
-        lines: syncResult.lines,
+        lines: nextLines,
         originalContent: envContent,
         fallbackContent: afterExampleContent,
       }),

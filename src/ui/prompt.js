@@ -42,6 +42,22 @@ export function createPromptUi({ input = process.stdin, output = process.stdout 
         formatOption: formatSelfUpdateAction,
       });
     },
+    async selectEnvExampleUpdateAction(change) {
+      return select({
+        input,
+        output,
+        message: [
+          `server 项目的 .env.example 检测到已有配置项发生变化：${change.key}`,
+          `旧示例值：${formatEnvValue(change.beforeExampleValue)}`,
+          `新示例值：${formatEnvValue(change.afterExampleValue)}`,
+          `本地 .env 当前值：${formatEnvValue(change.localEnvValue)}`,
+          '请选择是否同步更新本地 .env',
+        ].join('\n'),
+        hint: '使用上下方向键选择，Enter 确认',
+        options: ['keep-local', 'update-local'],
+        formatOption: formatEnvExampleUpdateAction,
+      });
+    },
     async selectMysqlInitAction() {
       return select({
         input,
@@ -158,6 +174,22 @@ function formatMysqlInitAction(action) {
   }
 
   return '取消初始化';
+}
+
+function formatEnvExampleUpdateAction(action) {
+  if (action === 'keep-local') {
+    return '保留本地 .env 当前值（推荐）';
+  }
+
+  return '把本地值更新为新的 .env.example 值';
+}
+
+function formatEnvValue(value) {
+  if (value === '') {
+    return '（空值）';
+  }
+
+  return value;
 }
 
 async function promptText({

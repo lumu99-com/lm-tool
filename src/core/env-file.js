@@ -77,6 +77,55 @@ export async function readEmptyEnvKeys({ envPath }) {
   return findEmptyEnvKeys(content);
 }
 
+export function findModifiedExampleKeyUpdates({
+  beforeExampleLines,
+  afterExampleLines,
+  envLines,
+}) {
+  const beforeKeys = buildEnvKeyMap(beforeExampleLines);
+  const afterKeys = buildEnvKeyMap(afterExampleLines);
+  const envKeys = buildEnvKeyMap(envLines);
+  const updates = [];
+
+  for (const [key, beforeExampleValue] of beforeKeys.entries()) {
+    if (!afterKeys.has(key) || !envKeys.has(key)) {
+      continue;
+    }
+
+    const afterExampleValue = afterKeys.get(key);
+    if (beforeExampleValue === afterExampleValue) {
+      continue;
+    }
+
+    updates.push({
+      key,
+      beforeExampleValue,
+      afterExampleValue,
+      localEnvValue: envKeys.get(key),
+    });
+  }
+
+  return updates;
+}
+
+export function applyEnvKeyUpdates({ envLines, updates }) {
+  if (!updates || updates.length === 0) {
+    return toLineArray(envLines);
+  }
+
+  const updateMap = new Map(updates.map((item) => [item.key, item.value]));
+  return toLineArray(envLines).map((line) => {
+    const parsed = parseEnvLine(line);
+    if (parsed.kind !== 'key' || !updateMap.has(parsed.key)) {
+      return line;
+    }
+
+    const separatorIndex = line.indexOf('=');
+    const prefix = separatorIndex === -1 ? parsed.key : line.slice(0, separatorIndex);
+    return `${prefix}=${updateMap.get(parsed.key)}`;
+  });
+}
+
 export function syncAddedExampleLines({
   beforeExampleLines,
   afterExampleLines,
@@ -436,6 +485,18 @@ function toLineArray(input) {
   }
 
   return lines;
+}
+
+function buildEnvKeyMap(lines) {
+  const keyMap = new Map();
+
+  for (const line of parseEnvLines(lines)) {
+    if (line.kind === 'key') {
+      keyMap.set(line.key, line.value);
+    }
+  }
+
+  return keyMap;
 }
 
 async function exists(filePath) {
