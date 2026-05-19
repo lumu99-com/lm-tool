@@ -4,7 +4,7 @@ import { EventEmitter } from 'node:events';
 
 import { createExecutor } from './executor.js';
 
-test('executor uses cmd wrappers for npm and mvn on windows', async () => {
+test('executor routes npm and mvn through cmd.exe on windows', async () => {
   const calls = [];
   const executor = createExecutor({
     runtimePlatform: 'win32',
@@ -42,10 +42,10 @@ test('executor uses cmd wrappers for npm and mvn on windows', async () => {
     writeLine: () => {},
   });
 
-  assert.equal(calls[0].command, 'npm.cmd');
-  assert.deepEqual(calls[0].args, ['install']);
-  assert.equal(calls[1].command, 'mvn.cmd');
-  assert.deepEqual(calls[1].args, ['-version']);
+  assert.match(calls[0].command.toLowerCase(), /cmd(.exe)?$/);
+  assert.deepEqual(calls[0].args, ['/d', '/s', '/c', 'npm install']);
+  assert.match(calls[1].command.toLowerCase(), /cmd(.exe)?$/);
+  assert.deepEqual(calls[1].args, ['/d', '/s', '/c', 'mvn -version']);
   assert.equal(calls[2].command, 'git');
   assert.deepEqual(calls[2].args, ['fetch']);
 });

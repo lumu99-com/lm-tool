@@ -13,9 +13,9 @@ export function createExecutor({ spawnImpl = spawn, runtimePlatform = process.pl
         const shouldCaptureOutput = Boolean(input.captureOutput);
         let stdout = '';
         let stderr = '';
-        const command = resolveCommandForPlatform(input.command, runtimePlatform);
+        const spawnTarget = resolveSpawnTarget(input.command, input.args ?? [], runtimePlatform);
 
-        const child = spawnImpl(command, input.args ?? [], {
+        const child = spawnImpl(spawnTarget.command, spawnTarget.args, {
           cwd: input.cwd,
           shell: false,
         });
@@ -82,20 +82,41 @@ export function createExecutor({ spawnImpl = spawn, runtimePlatform = process.pl
   };
 }
 
-function resolveCommandForPlatform(command, runtimePlatform) {
+function resolveSpawnTarget(command, args, runtimePlatform) {
   if (runtimePlatform !== 'win32' || typeof command !== 'string') {
-    return command;
+    return { command, args };
   }
 
   if (/[\\/]/.test(command) || /\.[^./\\]+$/.test(command)) {
-    return command;
+    return { command, args };
   }
 
   if (WINDOWS_CMD_WRAPPERS.has(command.toLowerCase())) {
-    return `${command}.cmd`;
+    return {
+      command: process.env.ComSpec ?? 'cmd.exe',
+      args: ['/d', '/s', '/c', buildWindowsCmdCommandLine(command, args)],
+    };
   }
 
-  return command;
+  return { command, args };
+}
+
+function buildWindowsCmdCommandLine(command, args) {
+  const serializedArgs = args.map(quoteWindowsCmdArgument);
+  return [command, ...serializedArgs].join(' ');
+}
+
+function quoteWindowsCmdArgument(value) {
+  const text = String(value);
+  if (!text.length) {
+    return '""';
+  }
+
+  if (!/[\s"&|<>^()]/.test(text)) {
+    return text;
+  }
+
+  return `"${text.replace(/"/g, '""')}"`;
 }
 
 function buildResult({ exitCode, shouldCaptureOutput, stdout, stderr }) {

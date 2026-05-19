@@ -12,3 +12,4 @@
 - `check server` 和 `build server` 处理的 `.env`、`.env.example` 必须基于配置里的 `projects.server` 路径，不能写死成字面量 `server/.env`
 - `lm build server` 在 `git pull` 后，要先把 `.env.example` 中纯新增的 key / 注释增量补进 `.env`，再执行 `lm check server`
 - 创建新的命令规则时，要把介绍写入父级 help，例如 `lm mysql init` 也要同步写入 `lm mysql help`
+- Windows 下执行 `npm`、`npx`、`pnpm`、`yarn`、`mvn` 这类 `.cmd` wrapper 命令时，不能直接 `spawn xxx.cmd`，必须通过 `cmd.exe /d /s /c` 运行，避免出现 `spawn EINVAL`
