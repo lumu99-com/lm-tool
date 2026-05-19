@@ -21,8 +21,12 @@ export async function runSelfUpdatePreflight(deps) {
   const resolveUpstreamBranchImpl = deps.resolveUpstreamBranch ?? resolveUpstreamBranch;
   const readAheadBehindImpl = deps.readAheadBehind ?? readAheadBehind;
   const readHasLocalChangesImpl = deps.readHasLocalChanges ?? readHasLocalChanges;
+  const configuredToolDir = await readConfiguredLmToolPath({
+    configStore: deps.configStore,
+    autoConfigState,
+  });
 
-  const toolDir = await resolveToolDirImpl(deps.executableDir);
+  const toolDir = await resolveToolDirImpl(configuredToolDir ?? deps.executableDir);
   if (!toolDir) {
     writeSelfUpdateInfo(deps.writeLine, '当前 lm-tool 不在 Git 仓库中，已跳过更新检查');
     await saveAutoCheckDate(autoConfigState, today);
@@ -38,7 +42,7 @@ export async function runSelfUpdatePreflight(deps) {
 
   const fetchResult = await deps.executor.run({
     label: 'git fetch',
-    infoLabel: 'lm-tool 更新检查',
+    infoLabel: '检查 lm-tool 更新',
     startMessage: '正在检查 lm-tool 是否有更新',
     command: 'git',
     args: ['fetch'],
@@ -126,6 +130,19 @@ async function loadAutoConfigState({ mode, configStore, today }) {
     configStore,
     config,
   };
+}
+
+async function readConfiguredLmToolPath({ configStore, autoConfigState }) {
+  const config = autoConfigState?.config ?? await loadSelfUpdateConfig(configStore);
+  return config?.projects?.lmTool ?? null;
+}
+
+async function loadSelfUpdateConfig(configStore) {
+  if (!configStore?.load) {
+    return null;
+  }
+
+  return configStore.load();
 }
 
 async function saveAutoCheckDate(autoConfigState, today) {

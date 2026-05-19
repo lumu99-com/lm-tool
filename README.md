@@ -62,10 +62,11 @@ lm update
 - 在已经生成 `lm.config.json` 的前提下，`lm`、`lm help`、`lm init`、`lm build...`、`lm check...`、`lm mysql...` 每天第一次执行时会先检查 `lm-tool` 是否需要更新
 - `lm init help` 只显示初始化帮助，不会执行初始化
 - `lm init` 会先检查本机 `JDK 17`、`Maven 3.6.3 or later`、`MySQL 8`、`Redis 6+`
+- `lm init` 会写入 `server`、`web`、`admin`、`lmTool` 四个路径；如果已有路径配置，会逐项询问是否覆盖
 - 只有 `build` 命令会拉取 `server` / `web` / `admin` 仓库最新代码
 - `lm build web` 和 `lm build admin` 在 Linux 上执行 `npm run build`，在 Windows / macOS 上会新开终端窗口执行 `npm run dev`
 - `lm mysql` 用于查看本地 MySQL 配置，`lm mysql init` 和 `lm mysql user` 用于初始化本地数据库与创建本地用户
-- `lm update` 会立即手动检查并更新 `lm-tool`
+- `lm update` 会立即手动检查并更新 `lm-tool`，并优先使用配置中的 `projects.lmTool` 路径定位 `lm-tool` 仓库
 
 ## 直接从源码运行
 
@@ -105,9 +106,11 @@ lm init
 初始化流程会：
 
 - 通过上下键选择当前平台：`Windows` / `macOS` / `Linux`
-- 通过上下键选择仓库状态：`已拉取三个仓库` / `拉取了部分仓库` / `未拉取仓库`
+- 如果 `lm.config.json` 中已经存在 `server` / `web` / `admin` / `lmTool` 路径，会逐项提示是否覆盖
+- 对于仍需录入的业务仓库，通过上下键选择仓库状态：`已拉取三个仓库` / `拉取了部分仓库` / `未拉取仓库`
 - 如果仓库已存在，输入本机仓库路径
 - 如果仓库缺失，输入项目父目录，工具会自动创建目录并执行 `git clone`
+- 会额外记录 `lm-tool` 自身仓库路径；默认带出当前运行中的 `lm-tool` 仓库路径，也允许手动修改
 - 最终生成配置文件 `lm.config.json`
 
 如果仓库拉取权限不足，工具会提示：
@@ -279,7 +282,7 @@ create schema lumu99 collate utf8mb4_unicode_ci;
 
 ### `lm update`
 
-会立即检查当前 `lm-tool` 仓库是否有更新：
+会立即检查配置中的 `projects.lmTool` 对应仓库是否有更新；如果配置里还没有这个字段，则回退到当前 CLI 入口推导的 `lm-tool` 仓库：
 
 - 如果已经是最新代码，则提示无需更新
 - 如果拉取到了新代码，则提示你重新执行需要的命令
@@ -296,7 +299,7 @@ create schema lumu99 collate utf8mb4_unicode_ci;
 
 ## 自更新说明
 
-- `lm-tool` 自更新检查的是当前 `lm-tool` 本地仓库
+- `lm-tool` 自更新优先检查配置中的 `projects.lmTool` 本地仓库
 - 自动检查只会在已存在 `lm.config.json` 时启用，并把当天检查日期记录到 `selfUpdate.lastCheckedDate`
 - 如果当天已经检查过，后续 `lm`、`lm help`、`lm init`、`lm build...`、`lm check...`、`lm mysql...` 不会重复检查
 - 如果检测到远端有新代码，且本地仓库干净，会自动拉取最新代码
@@ -320,6 +323,13 @@ lm.config.json
 - Linux 新配置默认写入 `true`
 - 旧 Linux 配置即使缺少这个字段，运行时也会默认按 `true` 处理
 - Windows 和 macOS 不使用这个字段
+
+`projects` 中会保存以下路径：
+
+- `server`
+- `web`
+- `admin`
+- `lmTool`
 
 配置文件会写在当前 CLI 入口文件旁边。
 

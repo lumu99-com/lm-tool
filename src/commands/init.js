@@ -1,4 +1,5 @@
 import { mkdir } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 
 import { createCheckCommand } from './check.js';
 import { createInitPlan } from '../core/init-plan.js';
@@ -34,16 +35,46 @@ export function createInitCommand(deps) {
           return prerequisiteResult;
         }
 
+        const existingConfig = await loadConfig(configStore);
         const platform = await prompts.selectPlatform();
-        const repoState = await prompts.selectRepoState();
-        const existingRepos = repoState === 'all'
-          ? [...PROJECTS]
-          : repoState === 'partial'
-            ? await prompts.selectExistingRepos()
-            : [];
+        const existingProjects = existingConfig?.projects ?? {};
+        const keptPaths = {};
+        const unresolvedProjects = [];
 
-        const existingPaths = {};
-        for (const project of existingRepos) {
+        for (const project of PROJECTS) {
+          const configuredPath = existingProjects[project];
+          if (!configuredPath) {
+            unresolvedProjects.push(project);
+            continue;
+          }
+
+          const shouldOverwrite = await prompts.confirmPathOverwrite?.(project, configuredPath) ?? true;
+          if (!shouldOverwrite) {
+            await validateExistingRepoPath(configuredPath);
+            keptPaths[project] = configuredPath;
+            continue;
+          }
+
+          unresolvedProjects.push(project);
+        }
+
+        let repoState = 'all';
+        if (unresolvedProjects.length > 0) {
+          repoState = await prompts.selectRepoState();
+        }
+
+        const promptedExistingRepos = unresolvedProjects.length === 0
+          ? []
+          : repoState === 'all'
+            ? [...unresolvedProjects]
+            : repoState === 'partial'
+              ? await prompts.selectExistingRepos(unresolvedProjects)
+              : [];
+
+        const existingRepos = [...Object.keys(keptPaths), ...promptedExistingRepos];
+        const existingPaths = { ...keptPaths };
+
+        for (const project of promptedExistingRepos) {
           const inputPath = await prompts.inputExistingRepoPath(project);
           const normalized = normalizeProjectPath({
             input: inputPath,
@@ -70,6 +101,19 @@ export function createInitCommand(deps) {
           existingRepos,
           existingPaths,
           cloneParentDir,
+        });
+        const lmToolPath = await resolveLmToolPath({
+          prompts,
+          platform,
+          cwd: process.cwd(),
+          existingLmToolPath: existingProjects.lmTool,
+          resolveToolDir: deps.resolveToolDir ?? resolveToolDir,
+          executableDir: deps.executableDir ?? process.cwd(),
+        });
+        const finalConfig = buildFinalConfig({
+          existingConfig,
+          nextConfig: plan.config,
+          lmToolPath,
         });
 
         let serverClonedInRun = false;
@@ -101,7 +145,7 @@ export function createInitCommand(deps) {
           }
         }
 
-        await configStore.save(plan.config);
+        await configStore.save(finalConfig);
 
         if (serverClonedInRun) {
           const checkResult = await checkCommand.run('server');
@@ -119,4 +163,110 @@ export function createInitCommand(deps) {
       }
     },
   };
+}
+
+async function loadConfig(configStore) {
+  if (!configStore?.load) {
+    return null;
+  }
+
+  return configStore.load();
+}
+
+async function resolveLmToolPath({
+  prompts,
+  platform,
+  cwd,
+  existingLmToolPath,
+  resolveToolDir,
+  executableDir,
+}) {
+  if (existingLmToolPath) {
+    const shouldOverwrite = await prompts.confirmPathOverwrite?.('lmTool', existingLmToolPath) ?? true;
+    if (!shouldOverwrite) {
+      await validateExistingRepoPath(existingLmToolPath);
+      return existingLmToolPath;
+    }
+  }
+
+  const defaultToolDir = await resolveToolDir(executableDir) ?? executableDir;
+  const inputPath = prompts.inputLmToolPath
+    ? await prompts.inputLmToolPath(defaultToolDir)
+    : defaultToolDir;
+  const normalized = normalizeProjectPath({
+    input: inputPath,
+    platform,
+    cwd,
+  });
+  await validateExistingRepoPath(normalized.normalized);
+  return normalized.normalized;
+}
+
+function buildFinalConfig({ existingConfig, nextConfig, lmToolPath }) {
+  return {
+    ...existingConfig,
+    ...nextConfig,
+    projects: {
+      ...(existingConfig?.projects ?? {}),
+      ...(nextConfig.projects ?? {}),
+      lmTool: lmToolPath,
+    },
+    server: {
+      ...(existingConfig?.server ?? {}),
+      ...(nextConfig.server ?? {}),
+    },
+  };
+}
+
+async function resolveToolDir(executableDir) {
+  const result = await runCaptureCommand({
+    command: 'git',
+    args: ['rev-parse', '--show-toplevel'],
+    cwd: executableDir,
+  });
+
+  if (result.exitCode !== 0) {
+    return null;
+  }
+
+  return result.stdout.trim() || null;
+}
+
+async function runCaptureCommand(input) {
+  return new Promise((resolve) => {
+    const child = spawn(input.command, input.args ?? [], {
+      cwd: input.cwd,
+      shell: false,
+    });
+
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+
+    child.stdout?.on('data', (chunk) => {
+      stdout += String(chunk);
+    });
+
+    child.stderr?.on('data', (chunk) => {
+      stderr += String(chunk);
+    });
+
+    child.on('error', () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      resolve({ exitCode: 1, stdout, stderr });
+    });
+
+    child.on('close', (exitCode) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      resolve({ exitCode: exitCode ?? 1, stdout, stderr });
+    });
+  });
 }

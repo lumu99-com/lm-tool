@@ -22,21 +22,32 @@ export function createPromptUi({ input = process.stdin, output = process.stdout 
         formatOption: formatRepoState,
       });
     },
-    async selectExistingRepos() {
+    async selectExistingRepos(options = ['server', 'web', 'admin']) {
       return multiselect({
         input,
         output,
         message: '哪些仓库已经存在？',
         hint: '使用上下方向键移动，Space 勾选或取消，Enter 确认',
-        options: ['server', 'web', 'admin'],
+        options,
         formatOption: (option) => option,
       });
+    },
+    async confirmPathOverwrite(project, configuredPath) {
+      const action = await select({
+        input,
+        output,
+        message: `当前已配置 ${project} 路径：${configuredPath}\n是否覆盖该路径配置？`,
+        hint: '使用上下方向键选择，Enter 确认',
+        options: ['keep', 'overwrite'],
+        formatOption: formatPathOverwriteAction,
+      });
+      return action === 'overwrite';
     },
     async selectSelfUpdateAction() {
       return select({
         input,
         output,
-        message: 'lm-tool 有更新，但是 lm-tool 本地仓库有变更',
+        message: 'lm-tool 有更新，但是 lm-tool 本地仓库存在变更，是否继续更新？',
         hint: '使用上下方向键选择，Enter 确认',
         options: ['restore-and-update', 'skip-update'],
         formatOption: formatSelfUpdateAction,
@@ -84,6 +95,15 @@ export function createPromptUi({ input = process.stdin, output = process.stdout 
         output,
         message: `请输入 ${project} 仓库路径`,
         hint: '请输入本机仓库目录，程序会自动校验是否存在',
+      });
+    },
+    async inputLmToolPath(defaultValue) {
+      return promptText({
+        input,
+        output,
+        message: '请输入 lm-tool 仓库路径',
+        hint: '直接回车使用当前 lm-tool 仓库路径，也可以手动修改',
+        defaultValue,
       });
     },
     async inputEnvValue(key) {
@@ -158,6 +178,14 @@ function formatRepoState(state) {
   if (state === 'all') return '已拉取三个仓库';
   if (state === 'partial') return '拉取了部分仓库';
   return '未拉取仓库';
+}
+
+function formatPathOverwriteAction(action) {
+  if (action === 'keep') {
+    return '保留当前配置，不重新输入';
+  }
+
+  return '覆盖当前配置，重新输入';
 }
 
 function formatSelfUpdateAction(action) {

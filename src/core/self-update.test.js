@@ -82,7 +82,7 @@ test('manual mode prints skip message when lm-tool is not in a git repo', async 
   });
 
   assert.deepEqual(result, { exitCode: 0, shouldReexec: false });
-  assert.match(lines.join('\n'), /不在 Git 仓库/);
+  assert.match(lines.join('\n'), /当前 lm-tool 不在 Git 仓库中/);
 });
 
 test('manual mode prints skip message when lm-tool has no upstream branch', async (t) => {
@@ -107,7 +107,7 @@ test('manual mode prints skip message when lm-tool has no upstream branch', asyn
   });
 
   assert.deepEqual(result, { exitCode: 0, shouldReexec: false });
-  assert.match(lines.join('\n'), /未配置上游分支/);
+  assert.match(lines.join('\n'), /当前 lm-tool 仓库未配置上游分支/);
 });
 
 test('auto mode skips update check when config file does not exist', async () => {
@@ -185,7 +185,7 @@ test('auto mode requests reexec after pulling new code and saves the date', asyn
     projects: { server: 'D:/server' },
     selfUpdate: { lastCheckedDate: '2026-05-17' },
   });
-  assert.match(lines.join('\n'), /重新执行当前命令/);
+  assert.match(lines.join('\n'), /正在重新执行当前命令/);
 });
 
 test('auto mode clears tracked and untracked local changes before pulling updates', async () => {
@@ -212,7 +212,7 @@ test('auto mode clears tracked and untracked local changes before pulling update
     'git pull',
   ]);
   assert.equal(configStore.saves.length, 1);
-  assert.match(lines.join('\n'), /重新执行当前命令/);
+  assert.match(lines.join('\n'), /正在重新执行当前命令/);
 });
 
 test('manual mode updates without reexec and asks user to rerun the target command', async () => {
@@ -244,5 +244,56 @@ test('auto mode stores today when git repo preconditions cause a skip', async ()
   assert.deepEqual(executorCalls, []);
   assert.equal(configStore.saves.length, 1);
   assert.equal(configStore.currentConfig.selfUpdate.lastCheckedDate, '2026-05-17');
-  assert.match(lines.join('\n'), /不在 Git 仓库/);
+  assert.match(lines.join('\n'), /当前 lm-tool 不在 Git 仓库中/);
+});
+
+test('manual mode prefers projects.lmTool path from config when resolving update repo', async () => {
+  const resolveCalls = [];
+  const commandCwds = [];
+  const { deps } = createDeps({
+    mode: 'manual',
+    configStore: createConfigStore({
+      projects: {
+        lmTool: '/opt/lumu99/lm-tool',
+      },
+    }),
+    resolveToolDir: async (inputDir) => {
+      resolveCalls.push(inputDir);
+      return inputDir;
+    },
+    executor: {
+      run: async (input) => {
+        commandCwds.push(input.cwd);
+        return { exitCode: 0 };
+      },
+    },
+  });
+
+  const result = await runSelfUpdatePreflight(deps);
+
+  assert.deepEqual(result, { exitCode: 0, shouldReexec: false });
+  assert.deepEqual(resolveCalls, ['/opt/lumu99/lm-tool']);
+  assert.deepEqual(commandCwds, ['/opt/lumu99/lm-tool']);
+});
+
+test('manual mode falls back to executableDir when projects.lmTool is missing', async () => {
+  const resolveCalls = [];
+  const { deps } = createDeps({
+    mode: 'manual',
+    executableDir: '/opt/fallback/lm-tool/src',
+    configStore: createConfigStore({
+      projects: {
+        server: 'D:/server',
+      },
+    }),
+    resolveToolDir: async (inputDir) => {
+      resolveCalls.push(inputDir);
+      return 'D:/repo/lm-tool';
+    },
+  });
+
+  const result = await runSelfUpdatePreflight(deps);
+
+  assert.deepEqual(result, { exitCode: 0, shouldReexec: false });
+  assert.deepEqual(resolveCalls, ['/opt/fallback/lm-tool/src']);
 });

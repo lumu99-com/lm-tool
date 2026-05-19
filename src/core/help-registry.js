@@ -1,6 +1,6 @@
 export const helpRegistry = {
   root: [
-    { usage: 'lm init', description: '初始化当前平台和项目路径，可执行 lm init help 查看初始化帮助' },
+    { usage: 'lm init', description: '初始化当前平台与项目路径，支持复用或覆盖已有 server / web / admin / lm-tool 路径，可执行 lm init help 查看帮助' },
     { usage: 'lm init help', description: '显示 init 子命令帮助信息' },
     { usage: 'lm build', description: '按顺序处理 server、web、admin，可执行 lm build help 查看子命令' },
     { usage: 'lm check', description: '按顺序检查 server、web、admin，可执行 lm check help 查看子命令' },
@@ -9,7 +9,7 @@ export const helpRegistry = {
     { usage: 'lm help', description: '显示顶层帮助信息' },
   ],
   init: [
-    { usage: 'lm init', description: '先检查本机 JDK 17、Maven 3.6.3 or later、MySQL 8、Redis 6+，再进入初始化流程' },
+    { usage: 'lm init', description: '先检查本机 JDK 17、Maven 3.6.3 or later、MySQL 8、Redis 6+，再进入初始化流程并写入 server / web / admin / lm-tool 路径' },
     { usage: 'lm init help', description: '显示 init 子命令帮助信息' },
   ],
   build: [
@@ -50,9 +50,10 @@ export function buildHelpText(scope = 'root') {
     '- 已执行过 lm init 的环境下，lm、lm help、lm init、lm build、lm check、lm mysql 每天第一次执行时会先检查 lm-tool 是否有更新',
     '- lm init 只有在输入完整命令 lm init 时才会执行初始化，lm init help 只显示帮助',
     '- lm init 在进入交互前会检查本机 JDK 17、Maven 3.6.3 or later、MySQL 8、Redis 6+',
+    '- lm init 会把 server、web、admin、lm-tool 四个路径写入配置；已有路径会逐项询问是否覆盖',
     '- build 命令才会拉取 server、web、admin 仓库最新代码',
     '- lm build web 和 lm build admin 在 Linux 上执行 npm run build，在 Windows/macOS 上会新开终端窗口执行 npm run dev',
-    '- lm update 会立刻手动检查并更新 lm-tool，自身更新后需要重新执行目标命令',
+    '- lm update 会立刻手动检查并更新 lm-tool，自身更新后需要重新执行目标命令；更新仓库优先使用配置中的 projects.lmTool 路径',
     '- lm build server 会在 git pull 后对齐 .env.example 的纯新增项，再执行 lm check server',
     '- lm check server 只处理配置中 server 项目目录下的 .env 和 .env.example',
     '- lm mysql init 会使用配置中的 projects.server 路径定位 server 迁移目录',
